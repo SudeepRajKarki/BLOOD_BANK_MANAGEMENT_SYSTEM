@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+// App.js
+import React, { useContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import Public from "./components/public";
-import PrivateNavbar from "./components/privatenavbar";
+import { AuthContext } from "./Context/AuthContext";
+import Public from "./components/PublicNavbar";
+import PrivateNavbar from "./components/PrivateNavbar"; 
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -11,21 +13,12 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [userRole, setUserRole] = useState(localStorage.getItem("role"));
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setToken(localStorage.getItem("token"));
-      setUserRole(localStorage.getItem("role"));
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  const { token } = useContext(AuthContext); 
 
   return (
     <Router>
-      {token ? <PrivateNavbar role={userRole} /> : <Public />}
+      {token ? <PrivateNavbar /> : <Public />}
+
       <Routes>
         {!token ? (
           <>
@@ -36,12 +29,15 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
           </>
-        ) : (
+        ) : null}
+
+        {token ? (
           <>
             <Route path="/" element={<Dashboard />} />
           </>
-        )}
-        <Route path="*" element={<Navigate to={token ? "/" : "/"} />} />
+        ) : null}
+
+        <Route path="*" element={<Navigate to={token ? "/" : "/"} replace />} />
       </Routes>
     </Router>
   );

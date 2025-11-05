@@ -1,9 +1,12 @@
-import { useState } from "react";
+// Login.jsx
+import { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api/axios";
+import { AuthContext } from "../Context/AuthContext"; 
 
 export default function Login() {
-  const navigate = useNavigate(); // ✅ Hook for navigation
+  const navigate = useNavigate();
+  const { login } = useContext(AuthContext); 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -12,12 +15,10 @@ export default function Login() {
     try {
       const res = await api.post("/login", { email, password });
 
-      // ✅ Save token and role to localStorage
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role);
+      login(res.data.token, res.data.user.role);
 
       alert("Login successful!");
-      navigate("/"); // ✅ Redirect to dashboard
+      navigate("/", { replace: true });
     } catch (err) {
       alert("Invalid credentials or error logging in.");
     }

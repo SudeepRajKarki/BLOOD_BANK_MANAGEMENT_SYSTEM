@@ -1,30 +1,27 @@
-import React from "react";
+// components/PrivateNavbar.jsx
+import React, { useContext,useEffect } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { AuthContext } from "../Context/AuthContext"; 
 
-const PrivateNavbar = ({ role }) => {
+const PrivateNavbar = () => { 
+  const { role, logout } = useContext(AuthContext); 
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // 1. Clear authentication data
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("user"); // if you store user info
-
-    // 2. Redirect to login
-    navigate("/login");
+    logout(); 
+    navigate("/login", { replace: true });
   };
+ 
+  if (!role) return null;
 
   return (
     <nav className="bg-[#DAADAD] shadow-md">
       <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-16">
-        {/* Logo */}
         <Link to="/" className="text-xl font-bold text-red-600">
           BBMS
         </Link>
 
-        {/* Menu Items */}
         <div className="flex space-x-6">
-          {/* Common to all */}
           <NavLink
             to="/"
             className={({ isActive }) =>
@@ -34,7 +31,6 @@ const PrivateNavbar = ({ role }) => {
             Home
           </NavLink>
 
-          {/* Admin options */}
           {role === "admin" && (
             <>
               <NavLink to="/manage-campaigns" className="text-gray-700 hover:text-red-600">
@@ -46,7 +42,6 @@ const PrivateNavbar = ({ role }) => {
             </>
           )}
 
-          {/* Receiver options */}
           {role === "receiver" && (
             <>
               <NavLink to="/requests" className="text-gray-700 hover:text-red-600">
@@ -58,7 +53,6 @@ const PrivateNavbar = ({ role }) => {
             </>
           )}
 
-          {/* Donor options */}
           {role === "donor" && (
             <>
               <NavLink to="/campaigns" className="text-gray-700 hover:text-red-600">
@@ -70,7 +64,6 @@ const PrivateNavbar = ({ role }) => {
             </>
           )}
 
-          {/* Common profile + logout */}
           <NavLink to="/profile" className="text-gray-700 hover:text-red-600">
             Profile
           </NavLink>

@@ -1,11 +1,8 @@
-import PrivateNavbar from "../components/privatenavbar";
+import PrivateNavbar from "../components/PrivateNavbar";
 
 function Dashboard() {
-   const userRole = localStorage.getItem("role");
   return (
     <>
-      <PrivateNavbar role={userRole} />
-      {/* Dashboard content here */}
     </>
   );
 }
