@@ -18,7 +18,7 @@ class AuthController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:6',
-            'role' => 'required|in:donor,receiver,admin',
+            'role' => 'required|in:donor,receiver',
             'blood_group' => 'nullable|string|max:3',
             'location' => 'nullable|string',
         ]);
@@ -38,7 +38,9 @@ class AuthController extends Controller
         $user->save();
 
         // Send verification email
-        $verificationUrl = url('/api/verify-email?token=' . $token);
+        // $verificationUrl = url('/api/verify-email?token=' . $token);
+        $verificationUrl = config('app.frontend_url') . '/verify-email?token=' . $token;
+
         \Mail::to($user->email)->send(new \App\Mail\VerifyEmail($user, $verificationUrl));
 
         return response()->json(['message' => 'Registration successful. Please verify your email.'], 201);
@@ -93,7 +95,8 @@ class AuthController extends Controller
         $user->save();
 
         // Create reset link
-        $resetUrl = url('/api/reset-password?token=' . $token);
+        // $resetUrl = url('/api/reset-password?token=' . $token);
+        $resetUrl = config('app.frontend_url') . '/reset-password?token=' . $token;
 
         // Send email
         Mail::to($user->email)->send(new \App\Mail\ResetPasswordMail($user, $resetUrl));
