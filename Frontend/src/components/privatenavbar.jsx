@@ -36,7 +36,7 @@ const PrivateNavbar = () => {
               <NavLink to="/manage-campaigns" className="text-gray-700 hover:text-red-600">
                 Manage Campaigns
               </NavLink>
-              <NavLink to="/manage-inventory" className="text-gray-700 hover:text-red-600">
+              <NavLink to="/adminInventory" className="text-gray-700 hover:text-red-600">
                 Manage Inventory
               </NavLink>
             </>
@@ -47,7 +47,7 @@ const PrivateNavbar = () => {
               <NavLink to="/requests" className="text-gray-700 hover:text-red-600">
                 Requests
               </NavLink>
-              <NavLink to="/search" className="text-gray-700 hover:text-red-600">
+              <NavLink to="/bloodbank" className="text-gray-700 hover:text-red-600">
                 Search
               </NavLink>
             </>
@@ -61,13 +61,13 @@ const PrivateNavbar = () => {
               <NavLink to="/requests" className="text-gray-700 hover:text-red-600">
                 Requests
               </NavLink>
+             
             </>
           )}
-
-          <NavLink to="/profile" className="text-gray-700 hover:text-red-600">
-            Profile
-          </NavLink>
-
+           <NavLink to="/profile" className="text-gray-700 hover:text-red-600">
+                Profile
+           </NavLink>
+          
           <button
             onClick={handleLogout}
             className="text-gray-700 hover:text-red-600 font-semibold"

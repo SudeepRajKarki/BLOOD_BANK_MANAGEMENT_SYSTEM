@@ -13,7 +13,7 @@ Route::post('request', [RequestController::class, 'store']);
 Route::get('requests', [RequestController::class, 'index']);
 
 // View inventory
-Route::get('blood-inventory', [BloodInventoryController::class, 'index']);
+//Route::get('blood-inventory', [BloodInventoryController::class, 'index']);
 
 // AI endpoints (proxy) - receiver can invoke matching if needed
 Route::post('ai/match-donor', [AiMatchingController::class, 'matchDonor']);

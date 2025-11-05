@@ -21,10 +21,15 @@ Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
 Route::get('reset-password', [AuthController::class, 'verifyResetToken']);
 Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-// Protected routes grouped by role - jwt.auth applied to all
+// ✅ Public inventory routes (before jwt.auth)
+Route::get('blood-inventory', [BloodInventoryController::class, 'index']);
+Route::get('blood-inventory/{id}', [BloodInventoryController::class, 'show']);
+
+// 🔒 Protected routes (require login)
 Route::middleware(['jwt.auth'])->group(function () {
     Route::get('profile', [UserController::class, 'profile']);
     Route::post('profile/switch-role', [ProfileController::class, 'switchRole']);
+    Route::post('profile/delete-account', [ProfileController::class, 'deleteAccount']); 
     Route::post('logout', [AuthController::class, 'logout']);
 
     // role-specific route files

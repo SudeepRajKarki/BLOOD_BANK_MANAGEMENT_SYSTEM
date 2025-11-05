@@ -32,13 +32,10 @@ class AuthController extends Controller
             'location' => $validated['location'] ?? null,
         ]);
 
-        // Generate verification token
         $token = sha1(time() . $user->email);
         $user->email_verification_token = $token;
         $user->save();
 
-        // Send verification email
-        // $verificationUrl = url('/api/verify-email?token=' . $token);
         $verificationUrl = config('app.frontend_url') . '/verify-email?token=' . $token;
 
         \Mail::to($user->email)->send(new \App\Mail\VerifyEmail($user, $verificationUrl));
