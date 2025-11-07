@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 const PrivateFooter = ({ role }) => {
   const roleLinks = {
     admin: [
-      { to: "/manage-campaigns", label: "Manage Campaigns" },
+      { to: "/adminCampaign", label: "Manage Campaigns" },
       { to: "/manage-inventory", label: "Inventory" },
       { to: "/users", label: "Users" },
     ],

@@ -13,6 +13,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import AdminInventory from "./pages/AdminInventory";
+import ManageCampaigns from "./pages/AdminCampaign";
 
 function App() {
   const { token } = useContext(AuthContext); 
@@ -38,7 +39,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/profile" element={<Profile/>}/>
             <Route path="/adminInventory" element={<AdminInventory/>}/>
-
+            <Route path="/adminCampaign" element={<ManageCampaigns/>}/>
           </>
         ) : null}
 

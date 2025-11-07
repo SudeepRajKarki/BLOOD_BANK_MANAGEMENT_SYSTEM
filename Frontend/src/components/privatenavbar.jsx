@@ -33,11 +33,11 @@ const PrivateNavbar = () => {
 
           {role === "admin" && (
             <>
-              <NavLink to="/manage-campaigns" className="text-gray-700 hover:text-red-600">
-                Manage Campaigns
+              <NavLink to="/adminCampaigns" className="text-gray-700 hover:text-red-600">
+                Campaigns
               </NavLink>
               <NavLink to="/adminInventory" className="text-gray-700 hover:text-red-600">
-                Manage Inventory
+                Inventory
               </NavLink>
             </>
           )}
