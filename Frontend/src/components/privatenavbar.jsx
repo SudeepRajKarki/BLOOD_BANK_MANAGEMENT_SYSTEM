@@ -22,7 +22,10 @@ const PrivateNavbar = () => {
         </Link>
 
         <div className="flex space-x-6">
-          <NavLink
+
+          {role === "admin" && (
+            <>
+            <NavLink
             to="/"
             className={({ isActive }) =>
               isActive ? "text-red-600 font-semibold" : "text-gray-700 hover:text-red-600"
@@ -31,9 +34,7 @@ const PrivateNavbar = () => {
             Home
           </NavLink>
 
-          {role === "admin" && (
-            <>
-              <NavLink to="/adminCampaigns" className="text-gray-700 hover:text-red-600">
+              <NavLink to="/adminCampaign" className="text-gray-700 hover:text-red-600">
                 Campaigns
               </NavLink>
               <NavLink to="/adminInventory" className="text-gray-700 hover:text-red-600">
@@ -43,19 +44,35 @@ const PrivateNavbar = () => {
           )}
 
           {role === "receiver" && (
+
             <>
-              <NavLink to="/requests" className="text-gray-700 hover:text-red-600">
-                Requests
+              <NavLink
+               to="/receiverd"
+               className={({ isActive }) =>
+               isActive ? "text-red-600 font-semibold" : "text-gray-700 hover:text-red-600"
+               }
+               >
+                Home
               </NavLink>
-              <NavLink to="/bloodbank" className="text-gray-700 hover:text-red-600">
-                Search
+
+              <NavLink to="/receiveri" className="text-gray-700 hover:text-red-600">
+                Request
               </NavLink>
+              
             </>
           )}
 
           {role === "donor" && (
-            <>
-              <NavLink to="/campaigns" className="text-gray-700 hover:text-red-600">
+            <>  
+                <NavLink
+               to="/donordashboard"
+               className={({ isActive }) =>
+               isActive ? "text-red-600 font-semibold" : "text-gray-700 hover:text-red-600"
+               }
+               >
+                Home
+              </NavLink>  
+              <NavLink to="/donorcampaigns" className="text-gray-700 hover:text-red-600">
                 Campaigns
               </NavLink>
               <NavLink to="/requests" className="text-gray-700 hover:text-red-600">

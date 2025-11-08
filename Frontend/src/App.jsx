@@ -2,6 +2,7 @@
 import React, { useContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthContext } from "./Context/AuthContext";
+import AdminRoute from "./components/AdminRoutes";
 import Public from "./components/PublicNavbar";
 import PrivateNavbar from "./components/PrivateNavbar"
 import LandingPage from "./pages/LandingPage";
@@ -14,6 +15,9 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import AdminInventory from "./pages/AdminInventory";
 import ManageCampaigns from "./pages/AdminCampaign";
+import DonorCampaigns from "./pages/DonorCampaigns";
+import DonorDashboard from "./pages/DonorDashboard";
+import ReceiverInventory from "./pages/ReceiverSearch";
 
 function App() {
   const { token } = useContext(AuthContext); 
@@ -38,8 +42,12 @@ function App() {
           <>
             <Route path="/" element={<Dashboard />} />
             <Route path="/profile" element={<Profile/>}/>
-            <Route path="/adminInventory" element={<AdminInventory/>}/>
-            <Route path="/adminCampaign" element={<ManageCampaigns/>}/>
+            <Route path="/adminInventory" element={<AdminRoute><AdminInventory/></AdminRoute>}/>
+            <Route path="/adminCampaign" element={<AdminRoute><ManageCampaigns/></AdminRoute>}/>
+            <Route path="/donorcampaigns" element={<DonorCampaigns/>}/>
+            <Route path="/donordashboard" element={<DonorDashboard/>}/>
+            <Route path="/receiveri" element={<ReceiverInventory/>}/>
+
           </>
         ) : null}
 

@@ -7,8 +7,7 @@ use App\Http\Controllers\Api\DonorMatchController;
 
 // Donor routes (jwt.auth applied in api.php). Controllers enforce donor role as needed.
 
-Route::post('donate', [DonationController::class, 'store']);
-Route::get('donations', [DonationController::class, 'index']);
+
 
 // Notifications
 Route::get('notifications', [NotificationController::class, 'index']);

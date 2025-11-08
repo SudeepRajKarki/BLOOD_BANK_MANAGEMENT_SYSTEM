@@ -25,7 +25,6 @@ class RequestApprovalController extends Controller
                 return response()->json(['error' => 'invalid', 'message' => 'Request is not pending'], 400);
             }
 
-            // Try to find inventory matching blood type and location
             $invQuery = BloodInventory::where('blood_type', $req->blood_type);
             if (! empty($req->location)) {
                 $invQuery->where('location', $req->location);
@@ -33,11 +32,8 @@ class RequestApprovalController extends Controller
             $inventory = $invQuery->lockForUpdate()->first();
 
             if (! $inventory || $inventory->quantity_ml < $req->quantity_ml) {
-                // not enough inventory; cannot approve
-                // 'Denied' isn't a value in the DB enum for status; use 'Rejected' which is allowed
                 $req->status = 'Rejected';
                 $req->save();
-                // notify receiver
                 Notification::create([
                     'user_id' => $req->receiver_id,
                     'message' => "Your blood request #{$req->id} was denied due to insufficient inventory.",

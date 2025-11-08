@@ -65,12 +65,13 @@ export default function Profile() {
       <div className="space-y-4">
         <InfoItem label="Name" value={user.name} />
         <InfoItem label="Email" value={user.email} />
+        <InfoItem label="Blood Type" value={user.blood_type || "Not set"} />
+
         <InfoItem 
           label="Role" 
           value={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
         />
 
-        {/* ✅ Only show role switch if NOT admin */}
         {user.role !== 'admin' && (
           <div className="pt-4 border-t">
             <h3 className="font-medium mb-2">Switch Role</h3>
@@ -93,7 +94,6 @@ export default function Profile() {
         )}
       </div>
 
-      {/* ✅ Only show delete section if NOT admin */}
       {user.role !== 'admin' && (
         <div className="mt-8 pt-6 border-t border-red-200">
           <h3 className="text-red-600 font-semibold mb-2">Delete Account</h3>

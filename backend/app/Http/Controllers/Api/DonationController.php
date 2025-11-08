@@ -9,42 +9,38 @@ use Illuminate\Support\Facades\Auth;
 
 class DonationController extends Controller
 {
-    public function index()
-    {
-        $donations = Donation::with('donor')->get();
-        return response()->json($donations);
-    }
-
+    // Store a new donation
     public function store(Request $request)
     {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // ✅ Validate only what frontend sends (campaign_id and quantity)
         $validated = $request->validate([
-            'blood_type' => 'required_without:campaign_id|string|max:3',
-            'quantity_ml' => 'required|integer|min:1',
-            'donation_date' => 'required_without:campaign_id|date',
-            'campaign_id' => 'nullable|integer|exists:campaigns,id',
-            'location' => 'nullable|string',
+            'campaign_id' => 'required|exists:campaigns,id',
+            'quantity_ml' => 'required|integer|min:100',
         ]);
 
-        $campaignId = $validated['campaign_id'] ?? null;
-        if ($campaignId) {
-            $campaign = \App\Models\Campaign::find($campaignId);
-            if (! $campaign || $campaign->status !== 'Ongoing') {
-                return response()->json(['error' => 'invalid_campaign', 'message' => 'Campaign must be Ongoing to donate in-person'], 400);
-            }
-            // For campaign donations, use the campaign's date and location as authoritative
-            $validated['donation_date'] = $campaign->date;
-            $validated['location'] = $campaign->location;
-        }
-
+        // ✅ Create donation using donor's own blood type
         $donation = Donation::create([
-            'donor_id' => Auth::id(),
-            'blood_type' => $validated['blood_type'] ?? ($campaign->blood_type ?? null),
+            'donor_id' => $user->id,
+            'campaign_id' => $validated['campaign_id'],
+            'blood_type' => $user->blood_type, // always use donor's blood type
             'quantity_ml' => $validated['quantity_ml'],
-            'donation_date' => $validated['donation_date'] ?? now(),
-            'campaign_id' => $campaignId,
-            'location' => $validated['location'] ?? null,
+            'donation_date' => now(),
+            'location' => null,
         ]);
 
-        return response()->json($donation, 201);
+        return response()->json([
+            'message' => 'Donation registered successfully.',
+            'donation' => $donation,
+        ], 201);
+    }
+
+    // List all donations by this donor
+    public function index()
+    {
+        $donations = Donation::where('donor_id', Auth::id())->get();
+        return response()->json($donations);
     }
 }
