@@ -19,7 +19,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:6',
             'role' => 'required|in:donor,receiver',
-            'blood_group' => 'nullable|string|max:3',
+            'blood_type' => 'nullable|string|max:3',
             'location' => 'nullable|string',
         ]);
 
@@ -28,7 +28,7 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
-            'blood_group' => $validated['blood_group'] ?? null,
+            'blood_type' => $validated['blood_type'] ?? null,
             'location' => $validated['location'] ?? null,
         ]);
 

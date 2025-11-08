@@ -26,7 +26,7 @@ class UsersTableSeeder extends Seeder
         // Some donors
         User::factory()->count(8)->create()->each(function ($u) use ($nepalCities) {
             $u->role = 'donor';
-            $u->blood_group = ['A+','A-','B+','B-','O+','O-','AB+','AB-'][rand(0,7)];
+            $u->blood_type = ['A+','A-','B+','B-','O+','O-','AB+','AB-'][rand(0,7)];
             $u->location = $nepalCities[array_rand($nepalCities)];
             // randomly set last_donation_date to simulate eligibility
             if (rand(0, 1)) {
@@ -40,7 +40,7 @@ class UsersTableSeeder extends Seeder
         // Some receivers
         User::factory()->count(5)->create()->each(function ($u) use ($nepalCities) {
             $u->role = 'receiver';
-            $u->blood_group = ['A+','A-','B+','B-','O+','O-','AB+','AB-'][rand(0,7)];
+            $u->blood_type = ['A+','A-','B+','B-','O+','O-','AB+','AB-'][rand(0,7)];
             $u->location = $nepalCities[array_rand($nepalCities)];
             $u->save();
         });
