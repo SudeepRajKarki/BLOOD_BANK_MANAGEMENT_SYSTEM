@@ -5,31 +5,52 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Donation;
+use App\Models\Campaign;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class DonationController extends Controller
 {
-    // Store a new donation
     public function store(Request $request)
     {
-        // Get the authenticated user
         $user = Auth::user();
 
-        // ✅ Validate only what frontend sends (campaign_id and quantity)
         $validated = $request->validate([
             'campaign_id' => 'required|exists:campaigns,id',
             'quantity_ml' => 'required|integer|min:100',
         ]);
 
-        // ✅ Create donation using donor's own blood type
+        // Check eligibility: last donation must be > 56 days ago
+        if ($user->last_donation_date) {
+            $lastDonation = Carbon::parse($user->last_donation_date);
+            $nextEligibleDate = $lastDonation->addDays(56);
+
+            if (Carbon::now()->lt($nextEligibleDate)) {
+                return response()->json([
+                    'error' => 'ineligible',
+                    'message' => "You are not eligible to donate yet. Next eligible date: {$nextEligibleDate->toDateString()}",
+                ], 422);
+            }
+        }
+
+        // Get campaign to fetch location
+        $campaign = Campaign::find($validated['campaign_id']);
+
+        // Create donation record
         $donation = Donation::create([
-            'donor_id' => $user->id,
-            'campaign_id' => $validated['campaign_id'],
-            'blood_type' => $user->blood_type, // always use donor's blood type
-            'quantity_ml' => $validated['quantity_ml'],
-            'donation_date' => now(),
-            'location' => null,
+            'donor_id'     => $user->id,
+            'campaign_id'  => $campaign->id,
+            'blood_type'   => $user->blood_type,
+            'quantity_ml'  => $validated['quantity_ml'],
+            'donation_date'=> now(),
+            'location'     => $campaign->location, // store campaign location
+            'request_id'   => null, // this is not a request-based donation
+            'verified'     => false,
         ]);
+
+        // Update last_donation_date
+        $user->last_donation_date = now();
+        $user->save();
 
         return response()->json([
             'message' => 'Donation registered successfully.',
@@ -37,10 +58,10 @@ class DonationController extends Controller
         ], 201);
     }
 
-    // List all donations by this donor
     public function index()
     {
-        $donations = Donation::where('donor_id', Auth::id())->get();
+        // Load request with receiver and campaign relationship
+        $donations = Donation::with(['request.receiver', 'campaign'])->where('donor_id', auth()->id())->get();
         return response()->json($donations);
     }
 }

@@ -12,7 +12,12 @@ class DonorMatch extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'request_id', 'donor_id', 'match_score', 'status', 'scheduled_at', 'scheduled_location'
+        'request_id',
+        'donor_id',
+        'match_score',
+        'status',
+        'scheduled_at',
+        'scheduled_location'
     ];
 
     public function donor()
@@ -24,5 +29,9 @@ class DonorMatch extends Model
     {
         return $this->belongsTo(BloodRequest::class, 'request_id');
     }
-}
 
+    public function receiver()
+    {
+        return $this->belongsTo(User::class, 'receiver_id');
+    }
+}

@@ -164,35 +164,21 @@ class RequestController extends Controller
         $timeout = config('ai.timeout', 5);
 
         try {
-            // Calculate number of donors needed based on quantity
-            // Assuming average donation is 450-500ml, we calculate k (number of donors to match)
             $averageDonationMl = 450;
             $neededDonors = max(1, ceil($bloodRequest->quantity_ml / $averageDonationMl));
-            // Set a reasonable maximum (e.g., 10-15 donors) and minimum based on priority
             $maxDonors = $bloodRequest->priority === 'High' ? 15 : 10;
             $minDonors = $bloodRequest->priority === 'High' ? 3 : 2;
             $k = max($minDonors, min($neededDonors, $maxDonors));
 
-            // Gather donors from DB and include as payload to AI (similar to AiMatchingController)
-            $donorsQuery = User::where('role', 'donor');
+            $donorsQuery = User::where('role', 'donor'); // Exclude non-donors
             if ($bloodRequest->blood_type) {
                 $donorsQuery->where('blood_type', $bloodRequest->blood_type);
             }
 
             $donors = $donorsQuery->get()->map(function ($d) {
-                // Enrich donor payload for AI: include last_donation_days, response_rate, and total donations
-                $lastDonationDays = null;
-                if ($d->last_donation_date) {
-                    try {
-                        $lastDonationDays = Carbon::parse($d->last_donation_date)->diffInDays(now());
-                    } catch (\Exception $e) {
-                        $lastDonationDays = null;
-                    }
-                }
-
+                $lastDonationDays = $d->last_donation_date ? Carbon::parse($d->last_donation_date)->diffInDays(now()) : null;
                 $churn = ChurnPrediction::where('user_id', $d->id)->latest('prediction_date')->first();
                 $responseRate = $churn ? ($churn->likelihood_score ?? null) : null;
-
                 $donationCount = Donation::where('donor_id', $d->id)->count();
 
                 return [
@@ -200,7 +186,7 @@ class RequestController extends Controller
                     'name' => $d->name,
                     'email' => $d->email,
                     'location' => $d->location,
-                    'blood_group' => $d->blood_type, // AI service expects 'blood_group' key
+                    'blood_group' => $d->blood_type,
                     'last_donation_date' => $d->last_donation_date,
                     'last_donation_days' => $lastDonationDays,
                     'response_rate' => $responseRate,
@@ -208,97 +194,79 @@ class RequestController extends Controller
                 ];
             })->toArray();
 
-            // Use AI matching service to find best donor matches
             $response = Http::timeout($timeout)->post($aiUrl . '/match-donor', [
                 'blood_type' => $bloodRequest->blood_type,
                 'location' => $bloodRequest->location,
                 'quantity_ml' => $bloodRequest->quantity_ml,
                 'priority' => $bloodRequest->priority,
-                'k' => $k, // Pass calculated number of donors needed
-                'donors' => $donors, // Pass donors to AI service
+                'k' => $k,
+                'donors' => $donors,
             ]);
 
             if ($response->successful()) {
-                $responseData = $response->json();
-                // AI service returns 'nearest_donors' array with donor info
-                $matchedDonors = $responseData['nearest_donors'] ?? [];
-                $aiError = $responseData['error'] ?? null;
-
-                // If AI returned an error (e.g., invalid location), log it and use basic matching
-                if ($aiError) {
-                    Log::warning("Request #{$bloodRequest->id}: AI matching error: {$aiError}. Using basic matching.");
+                $matchedDonors = $response->json('nearest_donors') ?? [];
+                if (empty($matchedDonors)) {
                     return $this->matchDonorsBasic($bloodRequest);
                 }
 
-                // Create donor matches and send notifications for AI-matched donors
-                if (!empty($matchedDonors)) {
-                    $matchedDonorsInfo = [];
-                    $notifiedCount = 0;
+                $matchedDonorsInfo = [];
+                $notifiedCount = 0;
 
-                    foreach ($matchedDonors as $match) {
-                        $donorId = $match['id'] ?? $match['donor_id'] ?? null;
-                        // Use distance as match score (inverse - closer is better, so use 1/distance or similar)
-                        $distanceKm = $match['distance_km'] ?? 0;
-                        $matchScore = $distanceKm > 0 ? max(1, round(100 / ($distanceKm + 1))) : 1;
+                foreach ($matchedDonors as $match) {
+                    $donorId = $match['id'] ?? $match['donor_id'] ?? null;
+                    if (!$donorId) continue;
 
-                        if ($donorId) {
-                            // Check if match already exists
-                            $existingMatch = DonorMatch::where('request_id', $bloodRequest->id)
-                                ->where('donor_id', $donorId)
-                                ->first();
+                    $donor = User::find($donorId);
+                    if (!$donor || $donor->role !== 'donor') continue; // Skip non-donors
 
-                            if (!$existingMatch) {
-                                $donor = User::find($donorId);
+                    $existingMatch = DonorMatch::where('request_id', $bloodRequest->id)
+                        ->where('donor_id', $donorId)
+                        ->first();
+                    if ($existingMatch) continue;
 
-                                DonorMatch::create([
-                                    'request_id' => $bloodRequest->id,
-                                    'donor_id' => $donorId,
-                                    'match_score' => $matchScore,
-                                    'status' => 'Pending',
-                                ]);
+                    $distanceKm = $match['distance_km'] ?? 0;
+                    $matchScore = $distanceKm > 0 ? max(1, round(100 / ($distanceKm + 1))) : 1;
 
-                                Notification::create([
-                                    'user_id' => $donorId,
-                                    'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
-                                    'type' => 'donation_request',
-                                    'is_read' => false,
-                                ]);
+                    DonorMatch::create([
+                        'request_id' => $bloodRequest->id,
+                        'donor_id' => $donorId,
+                        'match_score' => $matchScore,
+                        'status' => 'Pending',
+                    ]);
 
-                                $matchedDonorsInfo[] = [
-                                    'donor_id' => $donorId,
-                                    'name' => $donor->name ?? 'Unknown',
-                                    'distance_km' => round($distanceKm, 2),
-                                    'match_score' => $matchScore,
-                                    'location' => $donor->location ?? null,
-                                ];
-                                $notifiedCount++;
-                            }
-                        }
-                    }
+                    Notification::create([
+                        'user_id' => $donorId,
+                        'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
+                        'type' => 'donation_request',
+                        'is_read' => false,
+                    ]);
 
-                    Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using AI matching (k={$k}, needed={$neededDonors}ml)");
-
-                    return [
-                        'count' => $notifiedCount,
-                        'donors' => $matchedDonorsInfo,
-                        'method' => 'ai',
+                    $matchedDonorsInfo[] = [
+                        'donor_id' => $donorId,
+                        'name' => $donor->name ?? 'Unknown',
+                        'distance_km' => round($distanceKm, 2),
+                        'match_score' => $matchScore,
+                        'location' => $donor->location ?? null,
                     ];
-                } else {
-                    // If AI returned no matches, fallback to basic matching
-                    Log::info("Request #{$bloodRequest->id}: AI returned no donor matches, using basic matching");
-                    return $this->matchDonorsBasic($bloodRequest);
+                    $notifiedCount++;
                 }
-            } else {
-                // AI service failed, fallback to basic matching
-                Log::warning("Request #{$bloodRequest->id}: AI donor matching failed, using basic matching");
-                return $this->matchDonorsBasic($bloodRequest);
+
+                Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using AI matching (k={$k}, needed={$neededDonors}ml)");
+
+                return [
+                    'count' => $notifiedCount,
+                    'donors' => $matchedDonorsInfo,
+                    'method' => 'ai',
+                ];
             }
+
+            return $this->matchDonorsBasic($bloodRequest);
         } catch (\Exception $e) {
-            // AI service unavailable, fallback to basic matching
-            Log::warning("Request #{$bloodRequest->id}: AI donor matching service unavailable: " . $e->getMessage());
+            Log::warning("Request #{$bloodRequest->id}: AI donor matching failed: " . $e->getMessage());
             return $this->matchDonorsBasic($bloodRequest);
         }
     }
+
 
     /**
      * Fallback: Basic donor matching without AI (matches by blood type)
@@ -307,72 +275,47 @@ class RequestController extends Controller
      */
     private function matchDonorsBasic(BloodRequest $bloodRequest)
     {
-        // Calculate number of donors needed based on quantity
         $averageDonationMl = 450;
         $neededDonors = max(1, ceil($bloodRequest->quantity_ml / $averageDonationMl));
-        // Set a reasonable maximum for basic matching (limit to prevent spamming all donors)
         $maxDonors = $bloodRequest->priority === 'High' ? 20 : 15;
         $limit = min($neededDonors, $maxDonors);
 
-        // Get compatible donors based on blood type with donation history
         $donors = User::where('role', 'donor')
             ->where('blood_type', $bloodRequest->blood_type)
             ->get();
 
-        // Calculate match scores for each donor
         $donorsWithScores = $donors->map(function ($donor) use ($bloodRequest) {
-            $matchScore = 50; // Base score
+            $matchScore = 50;
+            $lastDonationDays = $donor->last_donation_date ? Carbon::parse($donor->last_donation_date)->diffInDays(now()) : null;
 
-            // Calculate days since last donation
-            $lastDonationDays = null;
-            if ($donor->last_donation_date) {
-                try {
-                    $lastDonationDays = Carbon::parse($donor->last_donation_date)->diffInDays(now());
-                } catch (\Exception $e) {
-                    $lastDonationDays = null;
-                }
-            }
-
-            // Boost score if eligible to donate (90+ days since last donation, or never donated)
             if ($lastDonationDays === null || $lastDonationDays >= 90) {
-                $matchScore += 30; // Eligible to donate
+                $matchScore += 30;
             } elseif ($lastDonationDays >= 60) {
-                $matchScore += 15; // Almost eligible
+                $matchScore += 15;
             } else {
-                $matchScore -= 20; // Not eligible yet
+                $matchScore -= 20;
             }
 
-            // Boost score based on donation history
             $donationCount = Donation::where('donor_id', $donor->id)->count();
-            if ($donationCount > 5) {
-                $matchScore += 20; // Experienced donor
-            } elseif ($donationCount > 2) {
-                $matchScore += 10; // Regular donor
-            } elseif ($donationCount > 0) {
-                $matchScore += 5; // Has donated before
-            }
+            if ($donationCount > 5) $matchScore += 20;
+            elseif ($donationCount > 2) $matchScore += 10;
+            elseif ($donationCount > 0) $matchScore += 5;
 
-            // Boost score based on response rate (churn prediction)
             $churn = ChurnPrediction::where('user_id', $donor->id)->latest('prediction_date')->first();
             if ($churn && $churn->likelihood_score !== null) {
-                // Higher likelihood_score means more likely to respond
-                $responseBonus = min(20, (float)$churn->likelihood_score * 20);
-                $matchScore += $responseBonus;
+                $matchScore += min(20, (float)$churn->likelihood_score * 20);
             }
 
-            // Location matching (simple string matching for basic matching)
             if ($bloodRequest->location && $donor->location) {
                 $requestLocation = strtolower(trim($bloodRequest->location));
                 $donorLocation = strtolower(trim($donor->location));
-                if ($requestLocation === $donorLocation) {
-                    $matchScore += 15; // Same location
-                } elseif (strpos($donorLocation, $requestLocation) !== false ||
-                          strpos($requestLocation, $donorLocation) !== false) {
-                    $matchScore += 5; // Similar location
-                }
+                if ($requestLocation === $donorLocation) $matchScore += 15;
+                elseif (
+                    strpos($donorLocation, $requestLocation) !== false ||
+                    strpos($requestLocation, $donorLocation) !== false
+                ) $matchScore += 5;
             }
 
-            // Ensure score is between 1 and 100
             $matchScore = max(1, min(100, (int)$matchScore));
 
             return [
@@ -388,40 +331,40 @@ class RequestController extends Controller
 
         foreach ($donorsWithScores as $donorData) {
             $donor = $donorData['donor'];
+            if ($donor->role !== 'donor') continue;
+
             $matchScore = $donorData['match_score'];
 
-            // Check if match already exists
             $existingMatch = DonorMatch::where('request_id', $bloodRequest->id)
                 ->where('donor_id', $donor->id)
                 ->first();
+            if ($existingMatch) continue;
 
-            if (!$existingMatch) {
-                DonorMatch::create([
-                    'request_id' => $bloodRequest->id,
-                    'donor_id' => $donor->id,
-                    'match_score' => $matchScore,
-                    'status' => 'Pending',
-                ]);
+            DonorMatch::create([
+                'request_id' => $bloodRequest->id,
+                'donor_id' => $donor->id,
+                'match_score' => $matchScore,
+                'status' => 'Pending',
+            ]);
 
-                Notification::create([
-                    'user_id' => $donor->id,
-                    'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
-                    'type' => 'donation_request',
-                    'is_read' => false,
-                ]);
+            Notification::create([
+                'user_id' => $donor->id,
+                'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
+                'type' => 'donation_request',
+                'is_read' => false,
+            ]);
 
-                $matchedDonorsInfo[] = [
-                    'donor_id' => $donor->id,
-                    'name' => $donor->name,
-                    'distance_km' => null, // Not calculated in basic matching
-                    'match_score' => $matchScore,
-                    'location' => $donor->location,
-                ];
-                $notifiedCount++;
-            }
+            $matchedDonorsInfo[] = [
+                'donor_id' => $donor->id,
+                'name' => $donor->name,
+                'distance_km' => null,
+                'match_score' => $matchScore,
+                'location' => $donor->location,
+            ];
+            $notifiedCount++;
         }
 
-        Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using basic matching with calculated scores (limit={$limit}, needed={$neededDonors}ml)");
+        Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using basic matching (limit={$limit}, needed={$neededDonors}ml)");
 
         return [
             'count' => $notifiedCount,
@@ -429,6 +372,7 @@ class RequestController extends Controller
             'method' => 'basic',
         ];
     }
+
 
     /**
      * Get matched donors for a specific blood request
@@ -445,30 +389,33 @@ class RequestController extends Controller
             ->firstOrFail();
 
         $matches = DonorMatch::where('request_id', $requestId)
-            ->with('donor:id,name,email,location,blood_type')
+            ->with('donor:id,name,email,location,blood_type,role') // include role for safety
             ->orderBy('match_score', 'desc')
             ->get();
 
-        // Determine if request was sent to admin or donors
-        $hasDonorMatches = $matches->count() > 0;
-        $notificationSentTo = $hasDonorMatches ? 'donors' : 'admin';
+        // Filter out non-donors or deleted users
+        $validMatches = $matches->filter(function ($match) {
+            return $match->donor && $match->donor->role === 'donor';
+        });
+
+        $notificationSentTo = $validMatches->count() > 0 ? 'donors' : 'admin';
 
         return response()->json([
             'request_id' => $requestId,
             'notification_sent_to' => $notificationSentTo,
-            'matched_donors_count' => $matches->count(),
-            'matched_donors' => $matches->map(function ($match) {
+            'matched_donors_count' => $validMatches->count(),
+            'matched_donors' => $validMatches->map(function ($match) {
                 return [
                     'donor_id' => $match->donor_id,
-                    'donor_name' => $match->donor->name ?? 'Unknown',
-                    'donor_email' => $match->donor->email ?? null,
-                    'donor_location' => $match->donor->location ?? null,
+                    'donor_name' => $match->donor->name,
+                    'donor_email' => $match->donor->email,
+                    'donor_location' => $match->donor->location,
                     'match_score' => $match->match_score,
                     'status' => $match->status,
                     'scheduled_at' => $match->scheduled_at,
                     'scheduled_location' => $match->scheduled_location,
                 ];
-            }),
+            })->values(),
         ]);
     }
 }

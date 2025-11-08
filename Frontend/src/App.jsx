@@ -16,8 +16,12 @@ import Profile from "./pages/Profile";
 import AdminInventory from "./pages/AdminInventory";
 import ManageCampaigns from "./pages/AdminCampaign";
 import DonorCampaigns from "./pages/DonorCampaigns";
-import DonorDashboard from "./pages/DonorDashboard";
 import ReceiverInventory from "./pages/ReceiverSearch";
+import Receiver from "./HomePage/Receiver";
+import RequestApprove from "./pages/RequestApprove";
+import Admin from "./HomePage/Admin";
+import Donor from "./HomePage/Donor";
+import DonorRequest from "./pages/DonorRequest";
 
 function App() {
   const { token } = useContext(AuthContext); 
@@ -42,12 +46,15 @@ function App() {
           <>
             <Route path="/" element={<Dashboard />} />
             <Route path="/profile" element={<Profile/>}/>
+            <Route path="/admind" element={<AdminRoute><Admin/></AdminRoute>}/>
             <Route path="/adminInventory" element={<AdminRoute><AdminInventory/></AdminRoute>}/>
             <Route path="/adminCampaign" element={<AdminRoute><ManageCampaigns/></AdminRoute>}/>
+            <Route path="/requestApprove" element={<AdminRoute><RequestApprove/></AdminRoute>}/>
             <Route path="/donorcampaigns" element={<DonorCampaigns/>}/>
-            <Route path="/donordashboard" element={<DonorDashboard/>}/>
+            <Route path="/donorRequests" element={<DonorRequest/>}/>
+            <Route path="/donordashboard" element={<Donor/>}/>
             <Route path="/receiveri" element={<ReceiverInventory/>}/>
-
+            <Route path="/receiverd" element={<Receiver />} />
           </>
         ) : null}
 

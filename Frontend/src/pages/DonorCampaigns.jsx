@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import api from "../api/axios";
 import { AuthContext } from "../Context/AuthContext";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function DonorCampaigns() {
   const { user } = useContext(AuthContext);
@@ -9,8 +10,7 @@ export default function DonorCampaigns() {
   const [registeredCampaigns, setRegisteredCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
-  const [quantity, setQuantity] = useState(500);
-  const [msg, setMsg] = useState("");
+  const [quantity, setQuantity] = useState(450);
 
   const userBloodType = user?.blood_type || "";
 
@@ -25,7 +25,7 @@ export default function DonorCampaigns() {
       setCampaigns(res.data);
     } catch (err) {
       console.error(err);
-      setMsg("Failed to load campaigns.");
+      toast.error("❌ Failed to load campaigns.");
     } finally {
       setLoading(false);
     }
@@ -42,7 +42,7 @@ export default function DonorCampaigns() {
 
   const openPopup = (campaign) => {
     setSelectedCampaign(campaign);
-    setQuantity(500);
+    setQuantity(450);
     setShowPopup(true);
   };
 
@@ -57,16 +57,17 @@ export default function DonorCampaigns() {
     try {
       await api.post("/donate", {
         campaign_id: selectedCampaign.id,
-        blood_type: userBloodType, // always use user's blood type
+        blood_type: userBloodType,
         quantity_ml: quantity,
       });
 
-      setMsg(`✅ Registered for campaign #${selectedCampaign.id}!`);
+      toast.success(`✅ Registered for campaign #${selectedCampaign.id}!`);
       setRegisteredCampaigns([...registeredCampaigns, selectedCampaign.id]);
       closePopup();
     } catch (err) {
       console.error(err.response?.data || err);
-      setMsg(`❌ Failed to register. Try again later.`);
+      const errorMessage = err.response?.data?.message || "Failed to register. Try again later.";
+      toast.error(`❌ ${errorMessage}`);
     }
   };
 
@@ -74,8 +75,8 @@ export default function DonorCampaigns() {
 
   return (
     <div className="max-w-4xl mx-auto mt-10 p-4 space-y-6">
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 className="text-2xl font-bold mb-4">🩸 Ongoing Campaigns</h1>
-      {msg && <p className="text-sm text-red-600">{msg}</p>}
 
       {campaigns.length === 0 ? (
         <p>No ongoing campaigns at the moment.</p>
@@ -87,7 +88,7 @@ export default function DonorCampaigns() {
               className="p-4 rounded-xl shadow bg-white flex flex-col justify-between"
             >
               <div>
-                <h2 className="font-semibold text-lg">{c.location}</h2>
+                <h2 className="font-semibold text-lg">Location: {c.location}</h2>
                 <p className="text-sm text-gray-600">Date: {c.date}</p>
                 {c.description && (
                   <p className="text-sm text-gray-500 mt-1">{c.description}</p>

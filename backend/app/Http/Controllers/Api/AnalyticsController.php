@@ -13,6 +13,7 @@ class AnalyticsController extends Controller
         $requests = BloodRequest::count();
         $campaigns = Campaign::count();
         $topDonors = Donation::selectRaw('donor_id, COUNT(*) as total')
+            ->with(['donor:id,name'])
             ->groupBy('donor_id')
             ->orderByDesc('total')
             ->limit(5)

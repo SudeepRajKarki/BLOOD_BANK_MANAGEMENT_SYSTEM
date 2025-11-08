@@ -25,10 +25,12 @@ Route::get('campaign-reports', [CampaignReportController::class, 'index']);
 Route::get('campaign-reports/{id}', [CampaignReportController::class, 'show']);
 
 // Request approvals (admin only)
-Route::get('requests', [RequestController::class, 'index']);
-Route::post('requests/{id}/approve', [RequestApprovalController::class, 'approve']);
-Route::post('requests/{id}/deny', [RequestApprovalController::class, 'deny']);
-
+// Route::get('requests', [RequestController::class, 'index']);
+Route::prefix('admin')->group(function () {
+    Route::get('requests', [RequestApprovalController::class, 'allRequests']); // GET /admin/requests
+    Route::post('requests/{id}/approve', [RequestApprovalController::class, 'approve']);
+    Route::post('requests/{id}/deny', [RequestApprovalController::class, 'deny']);
+});
 // Analytics (admin only)
 Route::get('dashboard', [AnalyticsController::class, 'dashboard']);
 

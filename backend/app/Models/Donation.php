@@ -14,11 +14,12 @@ class Donation extends Model
         'campaign_id',
         'blood_type',
         'quantity_ml',
-        'donation_date', 
-        'location',    
-      ];
+        'donation_date',
+        'location',
+        'request_id',
+    ];
 
-   
+
 
     public function donor()
     {
@@ -34,5 +35,10 @@ class Donation extends Model
     public function getDonationDateAttribute()
     {
         return $this->created_at?->toDateString();
+    }
+
+    public function request()
+    {
+        return $this->belongsTo(BloodRequest::class, 'request_id');
     }
 }

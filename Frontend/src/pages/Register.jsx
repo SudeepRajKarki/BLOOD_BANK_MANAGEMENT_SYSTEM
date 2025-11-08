@@ -82,7 +82,7 @@ export default function Register() {
             <option value="receiver">Receiver</option>
           </select>
           <input
-            name="blood_group"
+            name="blood_type"
             placeholder="Blood Group"
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
