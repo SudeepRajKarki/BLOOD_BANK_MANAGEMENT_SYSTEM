@@ -61,6 +61,7 @@ def match_donor(data):
         'Birgunj': [27.0000, 84.8667],
         'Nepalgunj': [28.0583, 81.6174],
         'Mahendranagar': [29.0556, 80.5144],
+        'Chitwan': [27.5292, 84.3542],  # Added Chitwan coordinates
     }
 
     if not selected_city or selected_city not in city_coords:

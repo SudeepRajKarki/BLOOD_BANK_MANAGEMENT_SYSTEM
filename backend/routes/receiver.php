@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\BloodInventoryController;
 // Requests
 Route::post('request', [RequestController::class, 'store']);
 Route::get('requests', [RequestController::class, 'index']);
+Route::get('requests/{requestId}/matched-donors', [RequestController::class, 'getMatchedDonors']);
 
 // View inventory
 //Route::get('blood-inventory', [BloodInventoryController::class, 'index']);
