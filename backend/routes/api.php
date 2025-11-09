@@ -29,11 +29,14 @@ Route::get('blood-inventory/{id}', [BloodInventoryController::class, 'show']);
 Route::middleware(['jwt.auth'])->group(function () {
     Route::get('profile', [UserController::class, 'profile']);
     Route::post('profile/switch-role', [ProfileController::class, 'switchRole']);
-    Route::post('profile/delete-account', [ProfileController::class, 'deleteAccount']); 
-    Route::post('donation/check-eligibility', [ProfileController::class, 'checkDonationEligibility']); 
+    Route::post('profile/delete-account', [ProfileController::class, 'deleteAccount']);
+    Route::post('donation/check-eligibility', [ProfileController::class, 'checkDonationEligibility']);
     Route::middleware('jwt.auth')->group(function () {
     Route::post('donate', [DonationController::class, 'store']);
     Route::get('donations', [DonationController::class, 'index']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::put('/notifications/{id}', [NotificationController::class, 'markAsRead']);
 });
 
 

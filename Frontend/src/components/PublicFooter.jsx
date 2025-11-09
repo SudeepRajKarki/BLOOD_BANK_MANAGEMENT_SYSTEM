@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 
 const PublicFooter = () => {
   return (
-    <footer className="bg-[#DAADAD] text-gray-800 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Left Section */}
+    // Add top shadow here
+    <footer className="bg-[#DAADAD] text-gray-800 shadow-[0_-4px_10px_rgba(0,0,0,0.15)]">
+      {/* Main Footer Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        {/* Brand Info */}
         <div>
-          <h2 className="text-xl font-bold text-red-700 mb-3">BBMS</h2>
-          <p className="text-sm">
+          <h2 className="text-2xl font-bold text-red-700 font-serif mb-3">RedAid</h2>
+          <p className="text-sm leading-relaxed">
             A digital platform connecting blood donors and receivers to ensure faster and safer blood availability.
           </p>
         </div>
@@ -17,10 +20,38 @@ const PublicFooter = () => {
         <div>
           <h3 className="text-lg font-semibold text-red-700 mb-3">Quick Links</h3>
           <ul className="space-y-2 text-sm">
-            <li><Link to="/" className="hover:text-red-600">Home</Link></li>
-            <li><Link to="/register" className="hover:text-red-600">Register</Link></li>
-            <li><Link to="/login" className="hover:text-red-600">Login</Link></li>
-            <li><Link to="/about" className="hover:text-red-600">About</Link></li>
+            <li>
+              <Link
+                to="/"
+                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+              >
+                Home
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/register"
+                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+              >
+                Register
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/login"
+                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+              >
+                Login
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/about"
+                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+              >
+                About
+              </Link>
+            </li>
           </ul>
         </div>
 
@@ -28,15 +59,24 @@ const PublicFooter = () => {
         <div>
           <h3 className="text-lg font-semibold text-red-700 mb-3">Contact Us</h3>
           <ul className="space-y-2 text-sm">
-            <li>Email: bloodbankmanagementsystem061@gmail.com</li>
-            <li>Phone: +977-9800000000</li>
-            <li>Location: Kathmandu, Nepal</li>
+            <li className="px-3 py-1">
+              <span className="font-medium">Email:</span>{" "}
+              bloodbankmanagementsystem061@gmail.com
+            </li>
+            <li className="px-3 py-1">
+              <span className="font-medium">Phone:</span> +977-9800000000
+            </li>
+            <li className="px-3 py-1">
+              <span className="font-medium">Location:</span> Kathmandu, Nepal
+            </li>
           </ul>
         </div>
       </div>
 
-      <div className="border-t border-red-300 mt-8 pt-4 text-center text-sm text-gray-700">
-        © {new Date().getFullYear()} BBMS All Rights Reserved.
+      {/* Footer Bottom */}
+      <div className="bg-[#DAADAD] py-4 text-center text-sm text-gray-700 border-t border-red-200/30">
+        © {new Date().getFullYear()}{" "}
+        <span className="font-semibold text-red-700">BBMS</span>. All Rights Reserved.
       </div>
     </footer>
   );

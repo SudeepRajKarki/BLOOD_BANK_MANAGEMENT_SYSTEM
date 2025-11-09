@@ -22,6 +22,8 @@ import RequestApprove from "./pages/RequestApprove";
 import Admin from "./HomePage/Admin";
 import Donor from "./HomePage/Donor";
 import DonorRequest from "./pages/DonorRequest";
+import PrivateFooter from "./components/PrivateFooter";
+import PublicFooter from "./components/PublicFooter";
 
 function App() {
   const { token } = useContext(AuthContext); 
@@ -60,6 +62,7 @@ function App() {
 
         <Route path="*" element={<Navigate to={token ? "/" : "/"} replace />} />
       </Routes>
+      {token ? <PrivateFooter /> : <PublicFooter />}
     </Router>
   );
 }
