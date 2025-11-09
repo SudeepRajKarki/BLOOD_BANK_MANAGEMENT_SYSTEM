@@ -26,7 +26,7 @@ const PublicFooter = () => {
             <li>
               <Link
                 to="/"
-                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+                className="block px-3 py-2 rounded-md text-gray-800 hover:text-red-600 transition-colors duration-200"
               >
                 Home
               </Link>
@@ -34,7 +34,7 @@ const PublicFooter = () => {
             <li>
               <Link
                 to="/register"
-                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+                className="block px-3 py-2 rounded-md text-gray-800 hover:text-red-600 transition-colors duration-200"
               >
                 Register
               </Link>
@@ -42,7 +42,7 @@ const PublicFooter = () => {
             <li>
               <Link
                 to="/login"
-                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+                className="block px-3 py-2 rounded-md text-gray-800 hover:text-red-600 transition-colors duration-200"
               >
                 Login
               </Link>
@@ -50,13 +50,14 @@ const PublicFooter = () => {
             <li>
               <Link
                 to="/about"
-                className="block px-3 py-2 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+                className="block px-3 py-2 rounded-md text-gray-800 hover:text-red-600 transition-colors duration-200"
               >
                 About
               </Link>
             </li>
           </ul>
         </div>
+
 
         {/* Contact Info */}
         <div>

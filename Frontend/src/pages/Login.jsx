@@ -26,7 +26,9 @@ export default function Login() {
       else if (user.role === "donor") redirectTo = "/donordashboard";
       else if (user.role === "receiver") redirectTo = "/receiverd";
 
-      toast.success("Login successful! Redirecting...");
+      toast.success("Login successful! Redirecting...", {
+        duration: 2000, // disappear after 2 seconds
+      });
       setTimeout(() => navigate(redirectTo, { replace: true }), 2000);
     } catch (err) {
       const message =
