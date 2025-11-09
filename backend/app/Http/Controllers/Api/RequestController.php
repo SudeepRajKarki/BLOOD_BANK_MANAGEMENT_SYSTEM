@@ -157,6 +157,13 @@ class RequestController extends Controller
     /**
      * Match donors using AI and notify them about the blood request
      * Returns array with 'count' and 'donors' information
+     *
+     * Filters donors by:
+     * 1. Blood type (must match)
+     * 2. Eligibility: last donation > 56 days ago (check donations table and last_donation_date)
+     * 3. Uses donor_churn_prediction.py AI
+     * 4. Uses donor_match.py AI
+     * 5. Calculates match score in backend
      */
     private function matchDonorsWithAI(BloodRequest $bloodRequest)
     {
@@ -170,97 +177,300 @@ class RequestController extends Controller
             $minDonors = $bloodRequest->priority === 'High' ? 3 : 2;
             $k = max($minDonors, min($neededDonors, $maxDonors));
 
-            $donorsQuery = User::where('role', 'donor'); // Exclude non-donors
+            // Step 1: Filter donors by blood type
+            $donorsQuery = User::where('role', 'donor');
             if ($bloodRequest->blood_type) {
                 $donorsQuery->where('blood_type', $bloodRequest->blood_type);
             }
 
-            $donors = $donorsQuery->get()->map(function ($d) {
-                $lastDonationDays = $d->last_donation_date ? Carbon::parse($d->last_donation_date)->diffInDays(now()) : null;
-                $churn = ChurnPrediction::where('user_id', $d->id)->latest('prediction_date')->first();
-                $responseRate = $churn ? ($churn->likelihood_score ?? null) : null;
-                $donationCount = Donation::where('donor_id', $d->id)->count();
+            $allDonors = $donorsQuery->get();
+            $eligibleDonors = [];
 
-                return [
-                    'id' => $d->id,
-                    'name' => $d->name,
-                    'email' => $d->email,
-                    'location' => $d->location,
-                    'blood_group' => $d->blood_type,
-                    'last_donation_date' => $d->last_donation_date,
-                    'last_donation_days' => $lastDonationDays,
-                    'response_rate' => $responseRate,
-                    'total_donations' => $donationCount,
-                ];
-            })->toArray();
+            // Step 2: Filter by eligibility (56 days rule)
+            // Check both last_donation_date field AND donations table
+            $cutoffDate = Carbon::now()->subDays(56);
 
-            $response = Http::timeout($timeout)->post($aiUrl . '/match-donor', [
-                'blood_type' => $bloodRequest->blood_type,
-                'location' => $bloodRequest->location,
-                'quantity_ml' => $bloodRequest->quantity_ml,
-                'priority' => $bloodRequest->priority,
-                'k' => $k,
-                'donors' => $donors,
-            ]);
+            foreach ($allDonors as $donor) {
+                $isEligible = true;
 
-            if ($response->successful()) {
-                $matchedDonors = $response->json('nearest_donors') ?? [];
-                if (empty($matchedDonors)) {
-                    return $this->matchDonorsBasic($bloodRequest);
+                // Check last donation from donations table (campaign or request)
+                $lastDonation = Donation::where('donor_id', $donor->id)
+                    ->where('donation_date', '>=', $cutoffDate)
+                    ->orderBy('donation_date', 'desc')
+                    ->first();
+
+                if ($lastDonation) {
+                    // Donor has donated in last 56 days, not eligible
+                    $isEligible = false;
+                } else {
+                    // Also check last_donation_date field
+                    if ($donor->last_donation_date) {
+                        $lastDonationDate = Carbon::parse($donor->last_donation_date);
+                        if ($lastDonationDate->greaterThanOrEqualTo($cutoffDate)) {
+                            // Last donation was less than 56 days ago
+                            $isEligible = false;
+                        }
+                    }
                 }
 
-                $matchedDonorsInfo = [];
-                $notifiedCount = 0;
-
-                foreach ($matchedDonors as $match) {
-                    $donorId = $match['id'] ?? $match['donor_id'] ?? null;
-                    if (!$donorId) continue;
-
-                    $donor = User::find($donorId);
-                    if (!$donor || $donor->role !== 'donor') continue; // Skip non-donors
-
-                    $existingMatch = DonorMatch::where('request_id', $bloodRequest->id)
-                        ->where('donor_id', $donorId)
-                        ->first();
-                    if ($existingMatch) continue;
-
-                    $distanceKm = $match['distance_km'] ?? 0;
-                    $matchScore = $distanceKm > 0 ? max(1, round(100 / ($distanceKm + 1))) : 1;
-
-                    DonorMatch::create([
-                        'request_id' => $bloodRequest->id,
-                        'donor_id' => $donorId,
-                        'match_score' => $matchScore,
-                        'status' => 'Pending',
-                    ]);
-
-                    Notification::create([
-                        'user_id' => $donorId,
-                        'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
-                        'type' => 'donation_request',
-                        'is_read' => false,
-                    ]);
-
-                    $matchedDonorsInfo[] = [
-                        'donor_id' => $donorId,
-                        'name' => $donor->name ?? 'Unknown',
-                        'distance_km' => round($distanceKm, 2),
-                        'match_score' => $matchScore,
-                        'location' => $donor->location ?? null,
-                    ];
-                    $notifiedCount++;
+                if ($isEligible) {
+                    $eligibleDonors[] = $donor;
                 }
+            }
 
-                Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using AI matching (k={$k}, needed={$neededDonors}ml)");
-
+            if (empty($eligibleDonors)) {
+                Log::warning("Request #{$bloodRequest->id}: No eligible donors found (56-day rule)");
                 return [
-                    'count' => $notifiedCount,
-                    'donors' => $matchedDonorsInfo,
+                    'count' => 0,
+                    'donors' => [],
                     'method' => 'ai',
                 ];
             }
 
-            return $this->matchDonorsBasic($bloodRequest);
+            // Step 3: Prepare donor data for AI
+            $donorsData = [];
+            foreach ($eligibleDonors as $donor) {
+                // Calculate last donation days (from donations table or last_donation_date)
+                $lastDonation = Donation::where('donor_id', $donor->id)
+                    ->orderBy('donation_date', 'desc')
+                    ->first();
+
+                $lastDonationDays = null;
+                if ($lastDonation) {
+                    $lastDonationDays = Carbon::parse($lastDonation->donation_date)->diffInDays(now());
+                } elseif ($donor->last_donation_date) {
+                    $lastDonationDays = Carbon::parse($donor->last_donation_date)->diffInDays(now());
+                } else {
+                    // No donation history, assume very long time (eligible)
+                    $lastDonationDays = 365;
+                }
+
+                $donationCount = Donation::where('donor_id', $donor->id)->count();
+
+                // Get response rate from churn prediction (if available)
+                $churn = ChurnPrediction::where('user_id', $donor->id)
+                    ->latest('prediction_date')
+                    ->first();
+
+                // Calculate response rate based on donation history
+                // For now, use a simple heuristic: more donations = higher response rate
+                $responseRate = 0.5; // default
+                if ($donationCount > 5) {
+                    $responseRate = 0.9;
+                } elseif ($donationCount > 2) {
+                    $responseRate = 0.7;
+                } elseif ($donationCount > 0) {
+                    $responseRate = 0.6;
+                }
+
+                $donorsData[] = [
+                    'id' => $donor->id,
+                    'name' => $donor->name,
+                    'email' => $donor->email,
+                    'location' => $donor->location,
+                    'city' => $donor->location,
+                    'blood_group' => $donor->blood_type,
+                    'blood_type' => $donor->blood_type,
+                    'last_donation_date' => $lastDonation ? $lastDonation->donation_date : $donor->last_donation_date,
+                    'last_donation_days' => $lastDonationDays,
+                    'last_donation' => $lastDonationDays,
+                    'response_rate' => $responseRate,
+                    'total_donations' => $donationCount,
+                    'donation_count' => $donationCount,
+                ];
+            }
+
+            // Step 4: Use donor_churn_prediction.py AI
+            $churnResults = [];
+            try {
+                $churnResponse = Http::timeout($timeout)->post($aiUrl . '/churn-predict', [
+                    'candidates' => $donorsData,
+                ]);
+
+                if ($churnResponse->successful()) {
+                    $churnResults = $churnResponse->json();
+                    // If response is a list of results
+                    if (is_array($churnResults) && isset($churnResults[0]['donor_id'])) {
+                        // Already in correct format
+                    } else {
+                        // Convert to indexed array by donor_id
+                        $churnMap = [];
+                        foreach ($churnResults as $result) {
+                            if (isset($result['donor_id'])) {
+                                $churnMap[$result['donor_id']] = $result;
+                            }
+                        }
+                        $churnResults = $churnMap;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Request #{$bloodRequest->id}: Churn prediction AI failed: " . $e->getMessage());
+            }
+
+            // Step 5: Use donor_match.py AI for distance-based matching
+            $matchedDonors = [];
+            try {
+                $matchResponse = Http::timeout($timeout)->post($aiUrl . '/match-donor', [
+                    'city' => $bloodRequest->location,
+                    'location' => $bloodRequest->location,
+                    'blood_type' => $bloodRequest->blood_type,
+                    'k' => $k * 2, // Get more candidates for scoring
+                    'donors' => $donorsData,
+                ]);
+
+                if ($matchResponse->successful()) {
+                    $matchData = $matchResponse->json();
+                    $matchedDonors = $matchData['nearest_donors'] ?? [];
+                }
+            } catch (\Exception $e) {
+                Log::warning("Request #{$bloodRequest->id}: Donor match AI failed: " . $e->getMessage());
+                // Fallback: create matched donors from eligible donors
+                foreach ($donorsData as $donorData) {
+                    $matchedDonors[] = [
+                        'id' => $donorData['id'],
+                        'donor_id' => $donorData['id'],
+                        'name' => $donorData['name'],
+                        'distance_km' => 0, // Unknown distance
+                        'blood_group' => $donorData['blood_type'],
+                    ];
+                }
+            }
+
+            // Step 6: Calculate match score for each donor and rank them
+            $donorsWithScores = [];
+            foreach ($matchedDonors as $match) {
+                $donorId = $match['id'] ?? $match['donor_id'] ?? null;
+                if (!$donorId) continue;
+
+                $donor = collect($donorsData)->firstWhere('id', $donorId);
+                if (!$donor) continue;
+
+                // Initialize match score
+                $matchScore = 50; // Base score
+
+                // Factor 1: Churn probability (lower churn = higher score)
+                $churnData = null;
+                if (is_array($churnResults)) {
+                    if (isset($churnResults[0]) && is_array($churnResults[0])) {
+                        // List format
+                        $churnData = collect($churnResults)->firstWhere('donor_id', $donorId);
+                    } else {
+                        // Map format
+                        $churnData = $churnResults[$donorId] ?? null;
+                    }
+                }
+
+                if ($churnData) {
+                    $churnProb = $churnData['churn_probability'] ?? $churnData['score'] ?? 0.5;
+                    // Lower churn probability = higher score (inverse)
+                    $matchScore += (1 - $churnProb) * 30; // Max 30 points
+                } else {
+                    // Fallback: use response rate
+                    $responseRate = $donor['response_rate'] ?? 0.5;
+                    $matchScore += $responseRate * 30;
+                }
+
+                // Factor 2: Distance (closer = higher score)
+                $distanceKm = $match['distance_km'] ?? 999;
+                if ($distanceKm > 0 && $distanceKm < 999) {
+                    // Closer donors get higher scores
+                    $distanceScore = max(0, 40 - ($distanceKm * 2)); // Max 40 points, decreases with distance
+                    $matchScore += $distanceScore;
+                } else {
+                    // Unknown distance, give moderate score
+                    $matchScore += 20;
+                }
+
+                // Factor 3: Donation history (more donations = higher score)
+                $donationCount = $donor['total_donations'] ?? $donor['donation_count'] ?? 0;
+                if ($donationCount > 5) {
+                    $matchScore += 15;
+                } elseif ($donationCount > 2) {
+                    $matchScore += 10;
+                } elseif ($donationCount > 0) {
+                    $matchScore += 5;
+                }
+
+                // Factor 4: Last donation days (longer gap = slightly higher score, but not too long)
+                $lastDonationDays = $donor['last_donation_days'] ?? $donor['last_donation'] ?? 90;
+                if ($lastDonationDays >= 56 && $lastDonationDays <= 180) {
+                    // Optimal range: eligible but not too long
+                    $matchScore += 10;
+                } elseif ($lastDonationDays > 180) {
+                    // Very long gap, might be less engaged
+                    $matchScore += 5;
+                }
+
+                // Normalize score to 1-100 range
+                $matchScore = max(1, min(100, round($matchScore)));
+
+                $donorsWithScores[] = [
+                    'donor_id' => $donorId,
+                    'donor' => $donor,
+                    'match' => $match,
+                    'match_score' => $matchScore,
+                    'churn_data' => $churnData,
+                    'distance_km' => $distanceKm,
+                ];
+            }
+
+            // Sort by match score (descending) and take top k
+            usort($donorsWithScores, function ($a, $b) {
+                return $b['match_score'] - $a['match_score'];
+            });
+            $topDonors = array_slice($donorsWithScores, 0, $k);
+
+            // Step 7: Create DonorMatch records and send notifications
+            $matchedDonorsInfo = [];
+            $notifiedCount = 0;
+
+            foreach ($topDonors as $donorData) {
+                $donorId = $donorData['donor_id'];
+
+                $donor = User::find($donorId);
+                if (!$donor || $donor->role !== 'donor') continue;
+
+                // Check if match already exists
+                $existingMatch = DonorMatch::where('request_id', $bloodRequest->id)
+                    ->where('donor_id', $donorId)
+                    ->first();
+                if ($existingMatch) continue;
+
+                // Create DonorMatch record
+                DonorMatch::create([
+                    'request_id' => $bloodRequest->id,
+                    'donor_id' => $donorId,
+                    'match_score' => $donorData['match_score'],
+                    'status' => 'Pending',
+                ]);
+
+                // Send notification to donor
+                Notification::create([
+                    'user_id' => $donorId,
+                    'message' => "Urgent blood request #{$bloodRequest->id}: {$bloodRequest->blood_type} blood needed ({$bloodRequest->quantity_ml} ml). Priority: {$bloodRequest->priority}. You are a potential match!",
+                    'type' => 'donation_request',
+                    'is_read' => false,
+                ]);
+
+                $matchedDonorsInfo[] = [
+                    'donor_id' => $donorId,
+                    'name' => $donor->name ?? 'Unknown',
+                    'distance_km' => round($donorData['distance_km'], 2),
+                    'match_score' => $donorData['match_score'],
+                    'location' => $donor->location ?? null,
+                    'churn_probability' => $donorData['churn_data']['churn_probability'] ?? null,
+                ];
+                $notifiedCount++;
+            }
+
+            $eligibleCount = count($eligibleDonors);
+            Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using AI matching (k={$k}, eligible={$eligibleCount}, needed={$neededDonors}ml)");
+
+            return [
+                'count' => $notifiedCount,
+                'donors' => $matchedDonorsInfo,
+                'method' => 'ai',
+            ];
         } catch (\Exception $e) {
             Log::warning("Request #{$bloodRequest->id}: AI donor matching failed: " . $e->getMessage());
             return $this->matchDonorsBasic($bloodRequest);
@@ -272,6 +482,7 @@ class RequestController extends Controller
      * Fallback: Basic donor matching without AI (matches by blood type)
      * Returns array with 'count' and 'donors' information
      * Calculates match scores based on donor history and eligibility
+     * Also applies 56-day eligibility rule
      */
     private function matchDonorsBasic(BloodRequest $bloodRequest)
     {
@@ -280,20 +491,75 @@ class RequestController extends Controller
         $maxDonors = $bloodRequest->priority === 'High' ? 20 : 15;
         $limit = min($neededDonors, $maxDonors);
 
-        $donors = User::where('role', 'donor')
-            ->where('blood_type', $bloodRequest->blood_type)
-            ->get();
+        // Filter by blood type
+        $donorsQuery = User::where('role', 'donor')
+            ->where('blood_type', $bloodRequest->blood_type);
 
-        $donorsWithScores = $donors->map(function ($donor) use ($bloodRequest) {
-            $matchScore = 50;
-            $lastDonationDays = $donor->last_donation_date ? Carbon::parse($donor->last_donation_date)->diffInDays(now()) : null;
+        $allDonors = $donorsQuery->get();
+        $eligibleDonors = [];
 
-            if ($lastDonationDays === null || $lastDonationDays >= 90) {
-                $matchScore += 30;
-            } elseif ($lastDonationDays >= 60) {
-                $matchScore += 15;
+        // Filter by eligibility (56 days rule)
+        $cutoffDate = Carbon::now()->subDays(56);
+
+        foreach ($allDonors as $donor) {
+            $isEligible = true;
+
+            // Check last donation from donations table (campaign or request)
+            $lastDonation = Donation::where('donor_id', $donor->id)
+                ->where('donation_date', '>=', $cutoffDate)
+                ->orderBy('donation_date', 'desc')
+                ->first();
+
+            if ($lastDonation) {
+                // Donor has donated in last 56 days, not eligible
+                $isEligible = false;
             } else {
-                $matchScore -= 20;
+                // Also check last_donation_date field
+                if ($donor->last_donation_date) {
+                    $lastDonationDate = Carbon::parse($donor->last_donation_date);
+                    if ($lastDonationDate->greaterThanOrEqualTo($cutoffDate)) {
+                        // Last donation was less than 56 days ago
+                        $isEligible = false;
+                    }
+                }
+            }
+
+            if ($isEligible) {
+                $eligibleDonors[] = $donor;
+            }
+        }
+
+        if (empty($eligibleDonors)) {
+            Log::warning("Request #{$bloodRequest->id}: No eligible donors found in basic matching (56-day rule)");
+            return [
+                'count' => 0,
+                'donors' => [],
+                'method' => 'basic',
+            ];
+        }
+
+        $donorsWithScores = collect($eligibleDonors)->map(function ($donor) use ($bloodRequest) {
+            $matchScore = 50;
+
+            // Calculate last donation days
+            $lastDonation = Donation::where('donor_id', $donor->id)
+                ->orderBy('donation_date', 'desc')
+                ->first();
+
+            $lastDonationDays = null;
+            if ($lastDonation) {
+                $lastDonationDays = Carbon::parse($lastDonation->donation_date)->diffInDays(now());
+            } elseif ($donor->last_donation_date) {
+                $lastDonationDays = Carbon::parse($donor->last_donation_date)->diffInDays(now());
+            } else {
+                $lastDonationDays = 365; // No donation history
+            }
+
+            // Score based on last donation (eligible range is 56-180 days optimal)
+            if ($lastDonationDays >= 56 && $lastDonationDays <= 180) {
+                $matchScore += 30;
+            } elseif ($lastDonationDays > 180) {
+                $matchScore += 15;
             }
 
             $donationCount = Donation::where('donor_id', $donor->id)->count();
@@ -303,7 +569,9 @@ class RequestController extends Controller
 
             $churn = ChurnPrediction::where('user_id', $donor->id)->latest('prediction_date')->first();
             if ($churn && $churn->likelihood_score !== null) {
-                $matchScore += min(20, (float)$churn->likelihood_score * 20);
+                // Lower churn = higher score
+                $churnScore = (1 - (float)$churn->likelihood_score) * 20;
+                $matchScore += $churnScore;
             }
 
             if ($bloodRequest->location && $donor->location) {
@@ -364,7 +632,8 @@ class RequestController extends Controller
             $notifiedCount++;
         }
 
-        Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using basic matching (limit={$limit}, needed={$neededDonors}ml)");
+        $eligibleCount = count($eligibleDonors);
+        Log::info("Request #{$bloodRequest->id}: Matched {$notifiedCount} donors using basic matching (limit={$limit}, eligible={$eligibleCount}, needed={$neededDonors}ml)");
 
         return [
             'count' => $notifiedCount,

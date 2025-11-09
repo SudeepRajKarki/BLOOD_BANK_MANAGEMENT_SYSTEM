@@ -13,6 +13,7 @@ const Public = () => {
         
         <div className="flex justify-between h-16 items-center">
           <Link to="/" className="text-xl font-bold text-red-600 flex items-center">
+            <img src="/logo.png" alt="RedAid Logo" class="w-10 h-10" />
             <span className="font-serif">RedAid</span>
           </Link>
 

@@ -7,10 +7,13 @@ const PublicFooter = () => {
     <footer className="bg-[#DAADAD] text-gray-800 shadow-[0_-4px_10px_rgba(0,0,0,0.15)]">
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
-        
+
         {/* Brand Info */}
         <div>
-          <h2 className="text-2xl font-bold text-red-700 font-serif mb-3">RedAid</h2>
+          <h2 className="text-2xl font-bold text-red-700 font-serif mb-2 flex items-center gap-2">
+            <img src="/logo.png" alt="RedAid Logo" className="w-10 h-10" />
+            <span className="font-serif">RedAid</span>
+          </h2>
           <p className="text-sm leading-relaxed">
             A digital platform connecting blood donors and receivers to ensure faster and safer blood availability.
           </p>
@@ -76,7 +79,7 @@ const PublicFooter = () => {
       {/* Footer Bottom */}
       <div className="bg-[#DAADAD] py-4 text-center text-sm text-gray-700 border-t border-red-200/30">
         © {new Date().getFullYear()}{" "}
-        <span className="font-semibold text-red-700">BBMS</span>. All Rights Reserved.
+        <span className="font-semibold text-red-700">RedAid</span>. All Rights Reserved.
       </div>
     </footer>
   );

@@ -16,10 +16,10 @@ const PrivateNavbar = () => {
     role === "admin"
       ? "/admind"
       : role === "donor"
-      ? "/donordashboard"
-      : role === "receiver"
-      ? "/receiverd"
-      : "/";
+        ? "/donordashboard"
+        : role === "receiver"
+          ? "/receiverd"
+          : "/";
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -96,8 +96,9 @@ const PrivateNavbar = () => {
     <nav className="bg-[#DAADAD] shadow-md relative">
       <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-16">
         {/* ✅ Dynamic Home Link */}
-        <Link to={homeRoute} className="text-xl font-bold text-red-600">
-          RedAid
+        <Link to={homeRoute} className="flex items-center gap-2 text-xl font-bold text-red-600">
+          <img src="/logo.png" alt="RedAid Logo" className="w-10 h-10" />
+          <span className="font-serif">RedAid</span>
         </Link>
 
         <div className="flex space-x-6 items-center">
@@ -202,9 +203,8 @@ const PrivateNavbar = () => {
                       <div
                         key={n.id}
                         onClick={() => handleNotificationClick(n)}
-                        className={`p-3 text-sm cursor-pointer hover:bg-gray-100 ${
-                          !n.is_read ? "bg-red-50" : ""
-                        }`}
+                        className={`p-3 text-sm cursor-pointer hover:bg-gray-100 ${!n.is_read ? "bg-red-50" : ""
+                          }`}
                       >
                         <p>{n.message}</p>
                         <span className="text-xs text-gray-500">

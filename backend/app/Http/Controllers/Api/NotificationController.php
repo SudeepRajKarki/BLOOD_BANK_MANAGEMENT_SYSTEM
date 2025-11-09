@@ -11,9 +11,13 @@ class NotificationController extends Controller
 {
     public function index()
     {
-        $notifications = Notification::where('user_id', Auth::id())->get();
+        $notifications = Notification::where('user_id', Auth::id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json($notifications);
     }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

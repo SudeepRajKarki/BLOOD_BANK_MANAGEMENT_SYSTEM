@@ -22,8 +22,9 @@ const PrivateFooter = () => {
         
         {/* Brand */}
         <div className="text-center md:text-left">
-          <h2 className="text-2xl font-bold text-red-700 font-serif mb-2">
-            RedAid
+          <h2 className="text-2xl font-bold text-red-700 font-serif mb-2 flex items-center gap-2">
+            <img src="/logo.png" alt="RedAid Logo" className="w-10 h-10" />
+            <span className="font-serif">RedAid</span>
           </h2>
           <p className="text-sm">
             Manage your activities and stay updated through our blood bank system.
@@ -45,7 +46,7 @@ const PrivateFooter = () => {
         <div className="text-center md:text-right text-sm text-gray-700">
           <p>
             © {new Date().getFullYear()}{" "}
-            <span className="text-red-700 font-semibold">BBMS</span>. All rights
+            <span className="text-red-700 font-semibold">RedAid</span>. All rights
             reserved.
           </p>
         </div>

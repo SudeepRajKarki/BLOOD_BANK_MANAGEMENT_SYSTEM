@@ -11,6 +11,7 @@ use Database\Seeders\BloodRequestsTableSeeder;
 use Database\Seeders\DonorMatchesSeeder;
 use Database\Seeders\ChurnPredictionsSeeder;
 use Database\Seeders\DemandForecastsSeeder;
+use Database\Seeders\CampaignReportsSeeder;
 use Database\Seeders\NotificationsSeeder;
 use Database\Seeders\EmailVerificationsSeeder;
 
@@ -29,6 +30,7 @@ class DatabaseSeeder extends Seeder
             BloodRequestsTableSeeder::class,
             DonorMatchesSeeder::class,
             ChurnPredictionsSeeder::class,
+            CampaignReportsSeeder::class, // Must come after donations
             DemandForecastsSeeder::class,
             NotificationsSeeder::class,
             EmailVerificationsSeeder::class,

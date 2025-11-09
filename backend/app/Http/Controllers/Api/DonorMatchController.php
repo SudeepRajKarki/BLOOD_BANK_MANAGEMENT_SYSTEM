@@ -9,6 +9,7 @@ use App\Models\Donation;
 use App\Models\BloodRequest;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Notification;
+use Carbon\Carbon;
 
 class DonorMatchController extends Controller
 {
@@ -29,6 +30,35 @@ class DonorMatchController extends Controller
 
         if ($match->status !== 'Pending') {
             return response()->json(['error' => 'invalid', 'message' => 'Match already responded'], 400);
+        }
+
+        // Check eligibility: last donation must be > 56 days ago
+        $cutoffDate = Carbon::now()->subDays(56);
+
+        // Check donations table (campaign or request donations)
+        $recentDonation = Donation::where('donor_id', $user->id)
+            ->where('donation_date', '>=', $cutoffDate)
+            ->orderBy('donation_date', 'desc')
+            ->first();
+
+        if ($recentDonation) {
+            $nextEligibleDate = Carbon::parse($recentDonation->donation_date)->addDays(56);
+            return response()->json([
+                'error' => 'ineligible',
+                'message' => "You are not eligible to donate yet. Your last donation was on {$recentDonation->donation_date}. Next eligible date: {$nextEligibleDate->toDateString()}",
+            ], 422);
+        }
+
+        // Also check last_donation_date field
+        if ($user->last_donation_date) {
+            $lastDonationDate = Carbon::parse($user->last_donation_date);
+            if ($lastDonationDate->greaterThanOrEqualTo($cutoffDate)) {
+                $nextEligibleDate = $lastDonationDate->copy()->addDays(56);
+                return response()->json([
+                    'error' => 'ineligible',
+                    'message' => "You are not eligible to donate yet. Last donation date: {$lastDonationDate->toDateString()}. Next eligible date: {$nextEligibleDate->toDateString()}",
+                ], 422);
+            }
         }
 
         $validated = $request->validate([
@@ -55,6 +85,10 @@ class DonorMatchController extends Controller
             'location' => $scheduledLocation,
             'verified' => false,
         ]);
+
+        // Update user's last_donation_date to enforce 56-day rule
+        $user->last_donation_date = $scheduledAt;
+        $user->save();
 
         // Update match
         $match->status = 'Accepted';
