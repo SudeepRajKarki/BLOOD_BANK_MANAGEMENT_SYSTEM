@@ -32,10 +32,29 @@ class RequestController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Add notification status to each request
+        // Add notification status and donation progress to each request
         $requests = $requests->map(function ($request) {
             $hasDonorMatches = $request->donor_matches_count > 0;
             $request->notification_sent_to = $hasDonorMatches ? 'donors' : 'admin';
+            
+            // Calculate donation progress (only for requests sent to donors)
+            if ($hasDonorMatches) {
+                $acceptedMatches = DonorMatch::where('request_id', $request->id)
+                    ->where('status', 'Accepted')
+                    ->pluck('donor_id')
+                    ->toArray();
+                
+                $totalDonated = Donation::where('request_id', $request->id)
+                    ->whereIn('donor_id', $acceptedMatches)
+                    ->sum('quantity_ml');
+                
+                $request->donated_quantity_ml = (int) $totalDonated;
+                $request->remaining_quantity_ml = max(0, $request->quantity_ml - $totalDonated);
+            } else {
+                $request->donated_quantity_ml = 0;
+                $request->remaining_quantity_ml = $request->quantity_ml;
+            }
+            
             return $request;
         });
 
@@ -669,15 +688,32 @@ class RequestController extends Controller
 
         $notificationSentTo = $validMatches->count() > 0 ? 'donors' : 'admin';
 
+        // Calculate donation progress
+        $acceptedMatches = DonorMatch::where('request_id', $requestId)
+            ->where('status', 'Accepted')
+            ->pluck('donor_id')
+            ->toArray();
+        
+        $totalDonated = Donation::where('request_id', $requestId)
+            ->whereIn('donor_id', $acceptedMatches)
+            ->sum('quantity_ml');
+        
+        $donatedQuantity = (int) $totalDonated;
+        $remainingQuantity = max(0, $bloodRequest->quantity_ml - $donatedQuantity);
+
         return response()->json([
             'request_id' => $requestId,
             'notification_sent_to' => $notificationSentTo,
             'matched_donors_count' => $validMatches->count(),
+            'donated_quantity_ml' => $donatedQuantity,
+            'remaining_quantity_ml' => $remainingQuantity,
+            'requested_quantity_ml' => $bloodRequest->quantity_ml,
             'matched_donors' => $validMatches->map(function ($match) {
                 return [
                     'donor_id' => $match->donor_id,
                     'donor_name' => $match->donor->name,
                     'donor_email' => $match->donor->email,
+                    'donor_phone' => $match->donor->phone,
                     'donor_location' => $match->donor->location,
                     'match_score' => $match->match_score,
                     'status' => $match->status,

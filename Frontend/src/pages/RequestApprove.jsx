@@ -175,6 +175,10 @@ const RequestApprove = () => {
                     {req.receiver?.email || "N/A"}
                   </p>
                   <p>
+                    <strong>Receiver Phone:</strong>{" "}
+                    {req.receiver?.phone || "N/A"}
+                  </p>
+                  <p>
                     <strong>Receiver location:</strong>{" "}
                     {req.receiver?.location || "N/A"}
                   </p>

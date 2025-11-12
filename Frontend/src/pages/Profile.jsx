@@ -149,6 +149,7 @@ export default function Profile() {
         <div className="space-y-4">
           <InfoItem label="Name" value={user.name} />
           <InfoItem label="Email" value={user.email} />
+          <InfoItem label="Phone" value={user.phone || "Not set"} />
           <InfoItem label="Blood Type" value={user.blood_type || "Not set"} />
           <InfoItem label="Role" value={user.role.charAt(0).toUpperCase() + user.role.slice(1)} />
 

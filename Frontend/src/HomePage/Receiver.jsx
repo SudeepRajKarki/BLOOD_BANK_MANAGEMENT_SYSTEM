@@ -26,6 +26,14 @@ const Receiver = () => {
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
       setMatchedDonors((prev) => ({ ...prev, [requestId]: res.data.matched_donors }));
+      // Update request with donation progress if available
+      if (res.data.donated_quantity_ml !== undefined) {
+        setRequests((prev) => prev.map(req => 
+          req.id === requestId 
+            ? { ...req, donated_quantity_ml: res.data.donated_quantity_ml, remaining_quantity_ml: res.data.remaining_quantity_ml }
+            : req
+        ));
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to fetch matched donors.");
@@ -87,6 +95,22 @@ const Receiver = () => {
                     <span className={getPriorityColor(req.priority)}>Priority: {req.priority}</span>
                     <span className={getStatusColor(req.status)}>Status: {req.status}</span>
                   </div>
+                  {req.notification_sent_to === "donors" && req.donated_quantity_ml !== undefined && (
+                    <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded">
+                      <p className="text-sm font-semibold text-green-800">
+                        Donation Progress: {req.donated_quantity_ml} ml donated / {req.quantity_ml} ml requested
+                      </p>
+                      <p className="text-xs text-green-700">
+                        Remaining: {req.remaining_quantity_ml} ml
+                      </p>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full transition-all" 
+                          style={{ width: `${Math.min(100, (req.donated_quantity_ml / req.quantity_ml) * 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
                   <p className="text-sm text-gray-600 mb-1"><strong>Reason:</strong> {req.reason}</p>
                   {req.location && <p className="text-sm text-gray-600 mb-1"><strong>Location:</strong> {req.location}</p>}
                   <p className="text-xs text-gray-400">Requested on: {new Date(req.created_at).toLocaleString()}</p>
@@ -128,6 +152,16 @@ const Receiver = () => {
                       <h4 className="font-semibold mb-2">
                         Matched Donors ({matchedDonors[req.id]?.length || req.donor_matches_count || 0})
                       </h4>
+                      {req.donated_quantity_ml !== undefined && (
+                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-sm font-semibold text-blue-800">
+                            Progress: {req.donated_quantity_ml} ml / {req.quantity_ml} ml
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            Still needed: {req.remaining_quantity_ml} ml
+                          </p>
+                        </div>
+                      )}
                       {matchedDonors[req.id] !== undefined ? (
                         matchedDonors[req.id]?.length > 0 ? (
                           <div className="space-y-2">
@@ -136,6 +170,8 @@ const Receiver = () => {
                                 <div className="flex justify-between items-center">
                                   <div>
                                     <p className="font-medium">{donor.donor_name || "Unknown Donor"}</p>
+                                    {donor.donor_email && <p className="text-sm text-gray-600">Email: {donor.donor_email}</p>}
+                                    {donor.donor_phone && <p className="text-sm text-gray-600">Phone: {donor.donor_phone}</p>}
                                     {donor.donor_location && <p className="text-sm text-gray-600">Location: {donor.donor_location}</p>}
                                     {donor.distance_km != null && <p className="text-sm text-gray-600">Distance: {donor.distance_km} km</p>}
                                   </div>

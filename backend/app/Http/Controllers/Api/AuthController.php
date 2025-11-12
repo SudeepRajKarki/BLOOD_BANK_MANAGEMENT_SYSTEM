@@ -17,6 +17,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'email' => 'required|email|unique:users',
+            'phone' => 'nullable|string|max:20',
             'password' => 'required|string|min:6',
             'role' => 'required|in:donor,receiver',
             'blood_type' => 'nullable|string|max:3',
@@ -26,6 +27,7 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'blood_type' => $validated['blood_type'] ?? null,

@@ -29,12 +29,33 @@ export default function DonerRequest() {
 
   const handleAccept = async (matchId) => {
     try {
-      await api.post(`/donor-matches/${matchId}/accept`);
-      toast.success("Match accepted!");
+      const res = await api.post(`/donor-matches/${matchId}/accept`);
+      const data = res.data;
+      
+      // Show success message with remaining quantity info if available
+      if (data.remaining_quantity_ml !== undefined) {
+        if (data.request_fulfilled) {
+          toast.success("Match accepted! Request is now fulfilled.");
+        } else {
+          toast.success(`Match accepted! Remaining quantity needed: ${data.remaining_quantity_ml} ml.`);
+        }
+      } else {
+        toast.success("Match accepted!");
+      }
+      
       fetchMatches(); // refresh the list
     } catch (err) {
       console.error(err);
-      toast.error("Failed to accept match.");
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || "Failed to accept match.";
+      
+      // Handle specific error cases
+      if (err.response?.data?.error === 'already_fulfilled') {
+        toast.error("This request is already fulfilled. No more donations are needed.");
+      } else if (err.response?.data?.error === 'ineligible') {
+        toast.error(errorMessage);
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -77,6 +98,22 @@ export default function DonerRequest() {
                     <p>
                       <strong>Quantity:</strong> {req?.quantity_ml || "N/A"} ml
                     </p>
+                    {m.donated_quantity_ml !== undefined && (
+                      <div className="my-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-sm font-semibold text-blue-800">
+                          Donation Progress: {m.donated_quantity_ml} ml donated / {m.requested_quantity_ml} ml requested
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          Remaining: {m.remaining_quantity_ml} ml
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all" 
+                            style={{ width: `${Math.min(100, (m.donated_quantity_ml / m.requested_quantity_ml) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                     <p>
                       <strong>Status:</strong>{" "}
                       <span
@@ -111,6 +148,9 @@ export default function DonerRequest() {
                     </p>
                     <p>
                       <strong>Receiver Email:</strong> {req?.receiver?.email || "N/A"}
+                    </p>
+                    <p>
+                      <strong>Receiver Phone:</strong> {req?.receiver?.phone || "N/A"}
                     </p>
                     <p>
                       <strong>Match Created At:</strong>{" "}

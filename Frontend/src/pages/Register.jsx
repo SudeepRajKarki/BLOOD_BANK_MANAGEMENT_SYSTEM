@@ -6,6 +6,7 @@ export default function Register() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     role: "donor",
     blood_group: "",
@@ -60,9 +61,17 @@ export default function Register() {
           />
           <input
             name="email"
+            type="email"
             placeholder="Email"
             onChange={handleChange}
             required
+            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+          />
+          <input
+            name="phone"
+            type="tel"
+            placeholder="Phone Number"
+            onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
           />
           <input
