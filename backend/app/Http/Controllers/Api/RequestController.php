@@ -36,25 +36,25 @@ class RequestController extends Controller
         $requests = $requests->map(function ($request) {
             $hasDonorMatches = $request->donor_matches_count > 0;
             $request->notification_sent_to = $hasDonorMatches ? 'donors' : 'admin';
-            
+
             // Calculate donation progress (only for requests sent to donors)
             if ($hasDonorMatches) {
                 $acceptedMatches = DonorMatch::where('request_id', $request->id)
                     ->where('status', 'Accepted')
                     ->pluck('donor_id')
                     ->toArray();
-                
+
                 $totalDonated = Donation::where('request_id', $request->id)
                     ->whereIn('donor_id', $acceptedMatches)
                     ->sum('quantity_ml');
-                
+
                 $request->donated_quantity_ml = (int) $totalDonated;
                 $request->remaining_quantity_ml = max(0, $request->quantity_ml - $totalDonated);
             } else {
                 $request->donated_quantity_ml = 0;
                 $request->remaining_quantity_ml = $request->quantity_ml;
             }
-            
+
             return $request;
         });
 
@@ -677,7 +677,7 @@ class RequestController extends Controller
             ->firstOrFail();
 
         $matches = DonorMatch::where('request_id', $requestId)
-            ->with('donor:id,name,email,location,blood_type,role') // include role for safety
+            ->with('donor:id,name,email,phone,location,blood_type,role') // include phone and role for safety
             ->orderBy('match_score', 'desc')
             ->get();
 
@@ -693,13 +693,46 @@ class RequestController extends Controller
             ->where('status', 'Accepted')
             ->pluck('donor_id')
             ->toArray();
-        
+
         $totalDonated = Donation::where('request_id', $requestId)
             ->whereIn('donor_id', $acceptedMatches)
             ->sum('quantity_ml');
-        
+
         $donatedQuantity = (int) $totalDonated;
         $remainingQuantity = max(0, $bloodRequest->quantity_ml - $donatedQuantity);
+
+        // City coordinates for distance calculation
+        $cityCoords = [
+            'Kathmandu' => [27.7172, 85.3240],
+            'Lalitpur' => [27.6644, 85.3188],
+            'Bhaktapur' => [27.6710, 85.4298],
+            'Pokhara' => [28.2096, 83.9856],
+            'Butwal' => [27.7000, 83.4500],
+            'Biratnagar' => [26.4525, 87.2718],
+            'Hetauda' => [27.4289, 85.0322],
+            'Dharan' => [26.8122, 87.2836],
+            'Janakpur' => [26.7083, 85.9230],
+            'Birgunj' => [27.0000, 84.8667],
+            'Nepalgunj' => [28.0583, 81.6174],
+            'Mahendranagar' => [29.0556, 80.5144],
+            'Chitwan' => [27.5292, 84.3542],
+        ];
+
+        // Helper function to calculate distance using Haversine formula
+        $calculateDistance = function($lat1, $lon1, $lat2, $lon2) {
+            $R = 6371; // Earth's radius in km
+            $dLat = deg2rad($lat2 - $lat1);
+            $dLon = deg2rad($lon2 - $lon1);
+            $a = sin($dLat / 2) * sin($dLat / 2) +
+                 cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+                 sin($dLon / 2) * sin($dLon / 2);
+            $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+            return $R * $c;
+        };
+
+        // Get receiver location coordinates
+        $receiverLocation = $bloodRequest->location;
+        $receiverCoords = $cityCoords[$receiverLocation] ?? null;
 
         return response()->json([
             'request_id' => $requestId,
@@ -708,13 +741,28 @@ class RequestController extends Controller
             'donated_quantity_ml' => $donatedQuantity,
             'remaining_quantity_ml' => $remainingQuantity,
             'requested_quantity_ml' => $bloodRequest->quantity_ml,
-            'matched_donors' => $validMatches->map(function ($match) {
+            'matched_donors' => $validMatches->map(function ($match) use ($receiverCoords, $cityCoords, $calculateDistance, $receiverLocation) {
+                // Calculate distance if both locations are available
+                $distanceKm = null;
+                if ($receiverCoords && $match->donor->location) {
+                    $donorLocation = $match->donor->location;
+                    $donorCoords = $cityCoords[$donorLocation] ?? null;
+
+                    if ($donorCoords) {
+                        $distanceKm = round($calculateDistance(
+                            $receiverCoords[0], $receiverCoords[1],
+                            $donorCoords[0], $donorCoords[1]
+                        ), 2);
+                    }
+                }
+
                 return [
                     'donor_id' => $match->donor_id,
                     'donor_name' => $match->donor->name,
                     'donor_email' => $match->donor->email,
                     'donor_phone' => $match->donor->phone,
                     'donor_location' => $match->donor->location,
+                    'distance_km' => $distanceKm,
                     'match_score' => $match->match_score,
                     'status' => $match->status,
                     'scheduled_at' => $match->scheduled_at,

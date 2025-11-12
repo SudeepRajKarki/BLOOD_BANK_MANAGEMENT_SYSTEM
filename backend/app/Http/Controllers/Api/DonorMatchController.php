@@ -9,6 +9,7 @@ use App\Models\Donation;
 use App\Models\BloodRequest;
 use App\Models\BloodInventory;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\Notification;
 use Carbon\Carbon;
 
@@ -62,21 +63,74 @@ class DonorMatchController extends Controller
             }
         }
 
+        // Get the associated blood request for date validation
+        $bloodRequest = BloodRequest::find($match->request_id);
+        if (!$bloodRequest) {
+            return response()->json(['error' => 'not_found', 'message' => 'Blood request not found'], 404);
+        }
+
+        // Normalize request creation time to app timezone
+        $systemTimezone = config('app.timezone', 'UTC');
+        $requestCreatedAt = Carbon::parse($bloodRequest->created_at)->setTimezone($systemTimezone);
+
+        // Validate input (no 'after:' rule — we’ll compare manually)
         $validated = $request->validate([
-            'scheduled_at' => 'nullable|date|after_or_equal:now',
+            'scheduled_at' => 'nullable|date',
             'scheduled_location' => 'nullable|string',
             'location' => 'nullable|string',
             'quantity_ml' => 'nullable|integer|min:1',
         ]);
 
-        $scheduledAt = $validated['scheduled_at'] ?? now();
-        $scheduledLocation = $validated['scheduled_location'] ?? ($validated['location'] ?? null);
+        // Default: schedule one hour after the request creation
+        $scheduledAt = $requestCreatedAt->copy()->addHour();
 
-        // Get the associated blood request
-        $bloodRequest = BloodRequest::find($match->request_id);
-        if (!$bloodRequest) {
-            return response()->json(['error' => 'not_found', 'message' => 'Blood request not found'], 404);
+        // If donor provided a scheduled_at time, normalize and compare
+        if (!empty($validated['scheduled_at'])) {
+            $scheduledAt = Carbon::parse($validated['scheduled_at'])->setTimezone($systemTimezone);
+
+            if ($scheduledAt->lte($requestCreatedAt)) {
+                return response()->json([
+                    'error' => 'invalid',
+                    'message' => 'Scheduled date must be after the request creation date. ' .
+                        'Request was created on ' . $requestCreatedAt->toDateTimeString() . '.',
+                ], 422);
+            }
         }
+
+        // Store in UTC for database consistency
+        $scheduledAt = $scheduledAt->clone()->setTimezone('UTC')->toDateTimeString();
+
+        // FINAL SAFETY CHECK: Ensure scheduled_at is definitely after request creation
+        // Convert to Carbon instance if it's a string
+        $scheduledAtCarbon = is_string($scheduledAt) ? Carbon::parse($scheduledAt) : $scheduledAt;
+        $requestCreatedAtCarbon = is_string($requestCreatedAt) ? Carbon::parse($requestCreatedAt) : $requestCreatedAt;
+
+        if ($scheduledAtCarbon->lte($requestCreatedAtCarbon)) {
+            // Force it to be at least 1 hour after request creation
+            $scheduledAt = $requestCreatedAtCarbon->copy()->addHour();
+        } else {
+            $scheduledAt = $scheduledAtCarbon;
+        }
+
+        // Convert back to string format for storage (ensure timezone is consistent)
+        $scheduledAt = $scheduledAt->clone()->setTimezone('UTC')->toDateTimeString();
+
+
+        // ONE MORE CHECK: Before saving, verify it's still after request creation
+        $finalCheck = Carbon::parse($scheduledAt);
+        $requestCheck = Carbon::parse($bloodRequest->created_at);
+        if ($finalCheck->lte($requestCheck)) {
+            // This should never happen, but if it does, force it
+            Log::warning("DonorMatchController: Scheduled time was before request time. Forcing correction.", [
+                'scheduled' => $scheduledAt,
+                'request_created' => $bloodRequest->created_at,
+                'match_id' => $match->id,
+                'request_id' => $bloodRequest->id
+            ]);
+            $scheduledAt = $requestCheck->copy()->addHour()->toDateTimeString();
+        }
+
+        $scheduledLocation = $validated['scheduled_location'] ?? ($validated['location'] ?? null);
 
         // Check if inventory is available for this request
         // If inventory is available, admin handles approval, so we don't change request status
@@ -259,10 +313,9 @@ class DonorMatchController extends Controller
         // Add donation progress information for each match
         $matches = $matches->map(function ($match) {
             if ($match->request) {
-                // Calculate total donated (excluding current donor if they haven't accepted yet)
+                // Calculate total donated - include all accepted matches (including current if accepted)
                 $acceptedMatches = DonorMatch::where('request_id', $match->request_id)
                     ->where('status', 'Accepted')
-                    ->where('id', '!=', $match->id) // Exclude current match
                     ->pluck('donor_id')
                     ->toArray();
 
