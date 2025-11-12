@@ -13,6 +13,7 @@ export default function DonerRequest() {
 
   const fetchMatches = async () => {
     try {
+      setLoading(true);
       const res = await api.get("/donor-matches");
       setMatches(res.data);
     } catch (err) {
@@ -43,7 +44,8 @@ export default function DonerRequest() {
         toast.success("Match accepted!");
       }
       
-      fetchMatches(); // refresh the list
+      // Refresh the list to show updated donation progress
+      await fetchMatches();
     } catch (err) {
       console.error(err);
       const errorMessage = err.response?.data?.message || err.response?.data?.error || "Failed to accept match.";
@@ -156,6 +158,26 @@ export default function DonerRequest() {
                       <strong>Match Created At:</strong>{" "}
                       {new Date(m.created_at).toLocaleString()}
                     </p>
+                    {m.status === "Accepted" && (
+                      <>
+                        <p>
+                          <strong>Scheduled At:</strong> {m.scheduled_at ? new Date(m.scheduled_at).toLocaleString() : "Not set"}
+                        </p>
+                        <p>
+                          <strong>Scheduled Location:</strong> {m.scheduled_location || req?.location || "Not specified"}
+                        </p>
+                      </>
+                    )}
+                    {m.status === "Pending" && (
+                      <>
+                        <p>
+                          <strong>Request Location:</strong> {req?.location || "Not specified"}
+                        </p>
+                        <p className="text-xs text-gray-500 italic">
+                          Schedule will be set when you accept this request
+                        </p>
+                      </>
+                    )}
 
                     {/* Accept/Decline buttons only if status is Pending */}
                     {m.status === "Pending" && (

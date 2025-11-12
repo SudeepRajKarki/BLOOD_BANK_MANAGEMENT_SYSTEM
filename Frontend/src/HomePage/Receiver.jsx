@@ -171,7 +171,7 @@ const Receiver = () => {
                                   <div>
                                     <p className="font-medium">{donor.donor_name || "Unknown Donor"}</p>
                                     {donor.donor_email && <p className="text-sm text-gray-600">Email: {donor.donor_email}</p>}
-                                    {donor.donor_phone && <p className="text-sm text-gray-600">Phone: {donor.donor_phone}</p>}
+                                    {donor.donor_phone && <p className="text-sm text-gray-600">Phone: {donor.donor_phone || "N/A"}</p>}
                                     {donor.donor_location && <p className="text-sm text-gray-600">Location: {donor.donor_location}</p>}
                                     {donor.distance_km != null && <p className="text-sm text-gray-600">Distance: {donor.distance_km} km</p>}
                                   </div>
@@ -187,7 +187,18 @@ const Receiver = () => {
                                     )}
                                   </div>
                                 </div>
-                                {donor.scheduled_at && <p className="text-sm text-gray-600 mt-1">Scheduled: {new Date(donor.scheduled_at).toLocaleString()}</p>}
+                                {donor.status === "Accepted" && (
+                                  <>
+                                    {donor.scheduled_at && (
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        <strong>Scheduled:</strong> {new Date(donor.scheduled_at).toLocaleString()}
+                                      </p>
+                                    )}
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      <strong>Scheduled Location:</strong> {donor.scheduled_location || req?.location || "Not specified"}
+                                    </p>
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>
