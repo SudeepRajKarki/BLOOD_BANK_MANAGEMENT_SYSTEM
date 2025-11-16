@@ -21,15 +21,16 @@ export default function Login() {
       const { token, user } = res.data;
       login(token, user.role);
 
+      // ✅ Save a flag to show toast only once
+      localStorage.setItem("justLoggedIn", "true");
+
       let redirectTo = "/";
       if (user.role === "admin") redirectTo = "/admind";
       else if (user.role === "donor") redirectTo = "/donordashboard";
       else if (user.role === "receiver") redirectTo = "/receiverd";
 
-      toast.success("Login successful! Redirecting...", {
-        duration: 2000, // disappear after 2 seconds
-      });
-      setTimeout(() => navigate(redirectTo, { replace: true }), 2000);
+      // redirect after login
+      setTimeout(() => navigate(redirectTo, { replace: true }), 500);
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -42,7 +43,6 @@ export default function Login() {
   };
 
   return (
-    // Fix: reduced height to make room for footer
     <div className="flex items-center justify-center min-h-[calc(100vh-80px)] bg-[#DAADAD] font-sans text-gray-800 pb-12">
       <Toaster position="top-center" reverseOrder={false} />
 
@@ -80,7 +80,6 @@ export default function Login() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
           <input
             type="email"
             placeholder="Email"
@@ -90,7 +89,6 @@ export default function Login() {
             className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
           />
 
-          {/* Password */}
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
@@ -105,40 +103,10 @@ export default function Login() {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-red-600 focus:outline-none"
             >
-              {showPassword ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M1 1l22 22" />
-                  <path d="M9.88 9.88a3 3 0 104.24 4.24" />
-                  <path d="M10.73 5.08A9.77 9.77 0 0112 5c7 0 10 7 10 7a17.38 17.38 0 01-2.16 3.19M6.12 6.12A17.51 17.51 0 002 12s3 7 10 7a9.74 9.74 0 004.95-1.33" />
-                </svg>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              )}
+              {showPassword ? "Hide" : "Show"}
             </button>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -148,33 +116,7 @@ export default function Login() {
                 : "bg-red-600 hover:bg-red-700 hover:scale-105 text-white"
             }`}
           >
-            {loading ? (
-              <span className="flex justify-center items-center gap-2">
-                <svg
-                  className="animate-spin h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  ></path>
-                </svg>
-                Logging In...
-              </span>
-            ) : (
-              "Login"
-            )}
+            {loading ? "Logging In..." : "Login"}
           </button>
         </form>
 

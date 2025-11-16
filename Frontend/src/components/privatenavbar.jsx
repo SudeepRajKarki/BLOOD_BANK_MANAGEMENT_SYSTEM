@@ -12,18 +12,32 @@ const PrivateNavbar = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // ✅ Dynamic home route based on role
+  // ✅ Show login success toast once
+ useEffect(() => {
+  if (localStorage.getItem("justLoggedIn")) {
+    const toastId = toast.success("Login successful! Redirecting...", { duration: 1000 });
+
+    localStorage.removeItem("justLoggedIn");
+
+    // Optional: force dismiss slightly after auto-duration
+    setTimeout(() => toast.dismiss(toastId), 1200);
+  }
+}, []);
+
+
+  // Dynamic home route
   const homeRoute =
     role === "admin"
       ? "/admind"
       : role === "donor"
-        ? "/donordashboard"
-        : role === "receiver"
-          ? "/receiverd"
-          : "/";
+      ? "/donordashboard"
+      : role === "receiver"
+      ? "/receiverd"
+      : "/";
 
   // Fetch notifications
   const fetchNotifications = async () => {
+    if (!token) return;
     try {
       const res = await axios.get("http://localhost:8000/api/notifications", {
         headers: { Authorization: `Bearer ${token}` },
@@ -35,10 +49,13 @@ const PrivateNavbar = () => {
   };
 
   useEffect(() => {
-    if (token) fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+    let interval;
+    if (dropdownOpen) {
+      fetchNotifications();
+      interval = setInterval(fetchNotifications, 2000);
+    }
     return () => clearInterval(interval);
-  }, [token]);
+  }, [dropdownOpen, token]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -47,44 +64,10 @@ const PrivateNavbar = () => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleNotificationClick = async (notification) => {
-    try {
-      await axios.put(
-        `http://localhost:8000/api/notifications/${notification.id}`,
-        { is_read: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (err) {
-      console.error("Failed to mark as read:", err);
-    }
-
-    setDropdownOpen(false);
-
-    switch (notification.type) {
-      case "donation_confirmed":
-      case "donation_declined":
-      case "request_approved":
-      case "request_denied":
-        navigate("/receiverd");
-        break;
-      case "donation_request":
-        navigate("/donorRequests");
-        break;
-      case "email":
-        navigate("/profile");
-        break;
-      case "request_approval":
-        navigate("/requestApprove");
-        break;
-      default:
-        navigate("/");
-    }
-  };
-
-  // ✅ Updated logout with confirmation toast
   const handleLogout = () => {
     toast((t) => (
       <div className="flex flex-col gap-2">
@@ -108,9 +91,7 @@ const PrivateNavbar = () => {
           </button>
         </div>
       </div>
-    ), {
-      duration: 5000
-    });
+    ));
   };
 
   if (!role) return null;
@@ -119,18 +100,19 @@ const PrivateNavbar = () => {
 
   return (
     <>
-      {/* ✅ Add Toaster */}
       <Toaster position="top-center" reverseOrder={false} />
-
       <nav className="bg-[#DAADAD] shadow-md relative">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-16">
-          {/* ✅ Dynamic Home Link */}
-          <Link to={homeRoute} className="flex items-center gap-2 text-xl font-bold text-red-600">
+          <Link
+            to={homeRoute}
+            className="flex items-center gap-2 text-xl font-bold text-red-600"
+          >
             <img src="/logo.png" alt="RedAid Logo" className="w-10 h-10" />
             <span className="font-serif">RedAid</span>
           </Link>
 
           <div className="flex space-x-6 items-center">
+            {/* Role-based nav links */}
             {role === "admin" && (
               <>
                 <NavLink
@@ -205,7 +187,7 @@ const PrivateNavbar = () => {
               Logout
             </button>
 
-            {/* Notifications Bell */}
+            {/* Notifications */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -231,9 +213,35 @@ const PrivateNavbar = () => {
                       notifications.map((n) => (
                         <div
                           key={n.id}
-                          onClick={() => handleNotificationClick(n)}
-                          className={`p-3 text-sm cursor-pointer hover:bg-gray-100 ${!n.is_read ? "bg-red-50" : ""
-                            }`}
+                          onClick={() => {
+                            axios.put(
+                              `http://localhost:8000/api/notifications/${n.id}`,
+                              { is_read: true },
+                              { headers: { Authorization: `Bearer ${token}` } }
+                            ).catch(console.error);
+                            setDropdownOpen(false);
+                            // navigate based on type
+                            switch (n.type) {
+                              case "donation_confirmed":
+                              case "donation_declined":
+                              case "request_approved":
+                              case "request_denied":
+                                navigate("/receiverd");
+                                break;
+                              case "donation_request":
+                                navigate("/donorRequests");
+                                break;
+                              case "email":
+                                navigate("/profile");
+                                break;
+                              case "request_approval":
+                                navigate("/requestApprove");
+                                break;
+                              default:
+                                navigate("/");
+                            }
+                          }}
+                          className={`p-3 text-sm cursor-pointer hover:bg-gray-100 ${!n.is_read ? "bg-red-50" : ""}`}
                         >
                           <p>{n.message}</p>
                           <span className="text-xs text-gray-500">
